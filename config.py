@@ -11,6 +11,9 @@ TESSERACT_CMD = os.environ.get("TESSERACT_CMD") or (
           if os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe") else "tesseract"))
 YT_DLP_PATH = os.environ.get("YT_DLP_PATH") or (
     r"D:\python_3.12\Scripts\yt-dlp.exe" if os.path.exists(r"D:\python_3.12\Scripts\yt-dlp.exe") else "yt-dlp")
+# Fully offline voice: faster-whisper for commands, openWakeWord for the wake listener.
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
+WHISPER_MODEL_DIR = os.environ.get("WHISPER_MODEL_DIR", r"D:\tools\voice_models\whisper")
 WAKE_WORD_THRESHOLD = 0.5
 USE_SPEECH_FILTER = True
 WHATSAPP_SESSION_PATH = "./whatsapp_session"

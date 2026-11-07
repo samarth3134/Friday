@@ -1,6 +1,6 @@
 {
   "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
-  "run_at": "2026-11-07T11:35:32+05:30",
+  "run_at": "2026-11-07T12:09:37+05:30",
   "mode": "offline, mocked external services and desktop actions",
   "tests_run": 124,
   "failures": 0,
@@ -258,6 +258,14 @@
       "status": "passed"
     },
     {
+      "test": "tests.test_interactions.WakeTests.test_heard_friday_device_failure",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_interactions.WakeTests.test_heard_friday_triggers_at_threshold",
+      "status": "passed"
+    },
+    {
       "test": "tests.test_interactions.WakeTests.test_no_command_and_loop_exception_recover_idle",
       "status": "passed"
     },
@@ -267,14 +275,6 @@
     },
     {
       "test": "tests.test_interactions.WakeTests.test_start_is_idempotent_without_real_thread",
-      "status": "passed"
-    },
-    {
-      "test": "tests.test_interactions.WakeTests.test_transcript_wake_match_and_unrelated_speech",
-      "status": "passed"
-    },
-    {
-      "test": "tests.test_interactions.WakeTests.test_wake_word_boundaries_and_punctuation",
       "status": "passed"
     },
     {

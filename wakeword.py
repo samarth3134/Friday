@@ -1,11 +1,13 @@
 import math
-import re
 import threading
 import time
 
 import brain
 import voice
 
+
+# OpenWakeWord handles the wake listener entirely offline (16 kHz mono input).
+from pathlib import Path
 
 STATE = "idle"
 _thread = None
@@ -14,24 +16,32 @@ _voice_command = None
 _voice_response = None
 _voice_version = 0
 
-# Reusable recognizer & microphone (avoids recreate overhead each cycle)
-_recognizer = None
-_microphone = None
-_mic_source = None
+_oww = None
+_oww_lock = threading.RLock()
 
 
-def _ensure_mic():
-    global _recognizer, _microphone, _mic_source
-    if _recognizer is None:
-        import speech_recognition as sr
-        _recognizer = sr.Recognizer()
-        _recognizer.energy_threshold = 4000
-        _recognizer.dynamic_energy_threshold = False
-        _microphone = sr.Microphone()
-        with _microphone as source:
-            _recognizer.adjust_for_ambient_noise(source, duration=0.15)
-        _mic_source = sr.Microphone()
-    return _recognizer, _mic_source
+def _ensure_oww():
+    global _oww
+
+    with _oww_lock:
+        if _oww is None:
+            from openwakeword.model import Model
+
+            _oww = Model(
+                wakeword_models=[str(Path(__file__).parent / "friday.onnx")],
+                inference_framework="onnx",
+            )
+
+    return _oww
+
+
+def _wake_threshold():
+    try:
+        import config
+
+        return float(getattr(config, "WAKE_WORD_THRESHOLD", 0.5))
+    except Exception:
+        return 0.5
 
 
 def _set_state(state):
@@ -55,14 +65,27 @@ def _play_beep():
         pass
 
 
-def _heard_friday():
+def _heard_friday(threshold=None, window_seconds=8):
     try:
-        recognizer, source = _ensure_mic()
-        with source as s:
-            audio = recognizer.listen(s, timeout=0.8, phrase_time_limit=1.5)
+        import numpy as np
+        import sounddevice as sd
 
-        transcript = recognizer.recognize_google(audio)
-        return re.search(r"\bfriday\b", transcript, re.IGNORECASE) is not None
+        threshold = _wake_threshold() if threshold is None else float(threshold)
+        samplerate = 16000
+        frame = 1280  # 80 ms at 16 kHz
+
+        model = _ensure_oww()
+        model.reset()
+        deadline = time.time() + window_seconds
+        with sd.InputStream(samplerate=samplerate, channels=1, dtype="int16", blocksize=frame) as stream:
+            while time.time() < deadline:
+                data, _overflowed = stream.read(frame)
+                audio = data[:, 0]
+                predictions = model.predict(audio)
+                score = float(predictions.get("friday", 0.0))
+                if score >= threshold:
+                    return True
+        return False
     except Exception:
         return False
 

@@ -1,4 +1,4 @@
-# Offline test results — 2026-11-07T11:35:32+05:30
+# Offline test results — 2026-11-07T12:09:37+05:30
 
 **124 methods: 124 passed, 0 failed; 0 errors, 0 skipped.**
 
@@ -86,11 +86,11 @@ None. All executed cases passed; unchecked README acceptance items remain unveri
 - [x] `tests.test_interactions.VoiceTests.test_speak_repeated_calls_and_blank_input`
 - [x] `tests.test_interactions.VoiceTests.test_speech_cancellation_and_engine_failure_reset_state`
 - [x] `tests.test_interactions.WakeTests.test_detection_state_sequence_and_handoff`
+- [x] `tests.test_interactions.WakeTests.test_heard_friday_device_failure`
+- [x] `tests.test_interactions.WakeTests.test_heard_friday_triggers_at_threshold`
 - [x] `tests.test_interactions.WakeTests.test_no_command_and_loop_exception_recover_idle`
 - [x] `tests.test_interactions.WakeTests.test_regression_unrelated_friday_substring_is_not_wake_word`
 - [x] `tests.test_interactions.WakeTests.test_start_is_idempotent_without_real_thread`
-- [x] `tests.test_interactions.WakeTests.test_transcript_wake_match_and_unrelated_speech`
-- [x] `tests.test_interactions.WakeTests.test_wake_word_boundaries_and_punctuation`
 - [x] `tests.test_memory_ui.DashboardTests.test_count_parser_no_unread_and_failure_messages`
 - [x] `tests.test_memory_ui.DashboardTests.test_regression_status_refresh_does_not_drive_whatsapp_ui`
 - [x] `tests.test_memory_ui.DashboardTests.test_service_failures_and_unavailable_memory_fall_back`

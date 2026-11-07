@@ -23,8 +23,8 @@ The model does not select tools. Routing uses word-boundary keyword matching plu
 | config.py | Models, paths, file restrictions, weather, user name, music quality |
 | ui.py | Dashboard and Chat tabs, styling, mic button, voice-message polling |
 | dashboard.py | Collects service status and recent memories |
-| voice.py | Google speech recognition and local pyttsx3 output |
-| wakeword.py | Google speech recognition looking for Friday, background thread and state |
+| voice.py | faster-whisper offline transcription + local pyttsx3 output |
+| wakeword.py | openWakeWord offline detection of "friday" (bundled friday.onnx) |
 | memory.py | Chroma facts, preferences, conversation pairs, similarity search, recent history |
 | tasks.py | SQLite task CRUD, filters, overdue queries |
 | filesystem.py | Restricted-path search/open/read/list/write/move/trash |
@@ -44,7 +44,7 @@ Python 3.10+ is the intended baseline. Windows is the primary target. A `require
 ```powershell
 python -m pip install -r requirements.txt
 # or the original list:
-python -m pip install requests chromadb duckduckgo-search pymupdf python-docx openpyxl send2trash psutil pyautogui pygetwindow screen-brightness-control pyttsx3 SpeechRecognition pyaudio numpy sounddevice gradio pytesseract ytmusicapi yt-dlp pygame google-api-python-client google-auth-oauthlib google-auth-httplib2
+python -m pip install requests chromadb duckduckgo-search pymupdf python-docx openpyxl send2trash psutil pyautogui pygetwindow screen-brightness-control pyttsx3 faster-whisper openwakeword numpy sounddevice gradio pytesseract ytmusicapi yt-dlp pygame google-api-python-client google-auth-oauthlib google-auth-httplib2
 python -m pip install pycaw comtypes
 ```
 
@@ -78,6 +78,8 @@ Contributing flow: edit on a branch or `main`, run `& D:\python_3.12\python.exe 
 | Global git exception | `D:\tools\mingit-global.gitconfig` (`safe.directory` for `D:/projects/Friday`) — required for every git/gh call |
 | Ollama (portable, D:-only) | `D:\tools\ollama\ollama.exe` (v0.40.15); not on PATH. `ollama serve` running as hidden process on localhost:11434; both models pulled and tagged (llama3:latest 4.66 GB, llava:latest 4.73 GB); OLLAMA_MODELS=`D:\ollama\models` |
 | Ollama model store | `D:\ollama\models` (user-level `OLLAMA_MODELS`) |
+| faster-whisper base (int8) | `D:\tools\voice_models\whisper\models--Systran--faster-whisper-base\snapshots\<hash>\` (model.bin etc.; loaded and transcribed a pyttsx3-generated "Hello world." fixture correctly on 2026-11-07) |
+| OpenWakeWord ONNX assets | `D:\python_3.12\Lib\site-packages\openwakeword\resources\models\` (feature/VAD models auto-downloaded; `friday.onnx` at repo root is the custom wake classifier — [1,16,96] float → [1,1] probability; loads and predicts via openWakeWord) |
 | Tesseract OCR 5.4.0 | `C:\Program Files\Tesseract-OCR\tesseract.exe` — installed on C: by the official installer which ignored the D: redirect; owner approved keeping it on C: (2026-11-07). `config.TESSERACT_CMD` uses it (D: path preferred if present). OCR verified end-to-end offline |
 | FFmpeg | `D:\tools\ffmpeg\bin\ffmpeg.exe` / `ffprobe.exe` — BtbN master-latest win64-gpl build, installed and verified 2026-11-07 (lavfi sine encode → ffprobe round-trip succeeded; `config.FFMPEG_LOCATION` resolves to it; `--ffmpeg-location` wired for yt-dlp) |
 | yt-dlp | `D:\python_3.12\Scripts\yt-dlp.exe` (version 2026.03.17, verified 2026-11-07); not on PATH — `config.YT_DLP_PATH` resolves it absolutely (override with the `YT_DLP_PATH` env var) |
@@ -99,7 +101,7 @@ These were explicitly set by the project owner and take precedence:
 - **Dependencies:** install only into `D:\python_3.12` unless told otherwise; `D:\tools` for machine tooling.
 - **git identity:** commits authored as `samarth3134 <108995242+samarth3134@users.noreply.github.com>`; the remote requires the `GIT_CONFIG_GLOBAL` exception (see source control).
 
-Music needs FFmpeg and yt-dlp, both resolved to absolute D: paths by the app (`config.FFMPEG_LOCATION` for yt-dlp's conversion step, `config.YT_DLP_PATH` for the playback CLI); neither needs to be on PATH. OCR needs Tesseract (installed at `C:\Program Files\Tesseract-OCR`). WhatsApp needs the Windows Desktop app signed in. Voice needs a microphone and internet for Google recognition.
+Music needs FFmpeg and yt-dlp, both resolved to absolute D: paths by the app (`config.FFMPEG_LOCATION` for yt-dlp's conversion step, `config.YT_DLP_PATH` for the playback CLI); neither needs to be on PATH. OCR needs Tesseract (installed at `C:\Program Files\Tesseract-OCR`). WhatsApp needs the Windows Desktop app signed in. Voice and the wake listener are fully offline (faster-whisper + openWakeWord; no internet needed — just a microphone).
 
 For Google integrations, enable Gmail and Calendar APIs, provide Desktop App OAuth credentials in credentials.json, and complete authorization. Gmail requests readonly/send/modify scopes; Calendar requests calendar access.
 
@@ -140,15 +142,14 @@ External prerequisites: Ollama (on this machine, the D:-only portable build at `
 
 Owner decision (2026-11-07): everything used must be open-source or free — nothing may cost money. The stack was audited against this:
 
-- **Open-source:** Python 3.12, Ollama (llama3, llava), ChromaDB, Gradio, pygame, pyttsx3, pyautogui/PyGetWindow/pycaw/pytesseract/send2trash, yt-dlp/ytmusicapi, Open-Meteo (weather, no key), SQLite, all internal modules.
-- **Free tier, proprietary (accepted by owner 2026-11-07 — no payment ever required):** Google Speech Recognition (voice + wake listener), Gmail and Google Calendar APIs (OAuth, read/send/modify + calendar), DuckDuckGo web search, WhatsApp Desktop automation.
-- Rejected alternatives: self-hosted CalDAV/IMAP+SMTP (open replacement for Gmail/Calendar), openWakeWord + faster-whisper (open replacement for Google STT), SearXNG (open-source search). The owner chose to keep the free Google/DuckDuckGo paths to avoid rewriting working features.
+- **Open-source:** Python 3.12, Ollama (llama3, llava), ChromaDB, Gradio, pygame, pyttsx3, pyautogui/PyGetWindow/pycaw/pytesseract/send2trash, yt-dlp/ytmusicapi, Open-Meteo (weather, no key), SQLite, **faster-whisper** and **openWakeWord** (voice + wake listener, fully offline since 2026-11-07), all internal modules.
+- **Free tier, proprietary (accepted by owner 2026-11-07 — no payment ever required):** Gmail and Google Calendar APIs (OAuth, read/send/modify + calendar), DuckDuckGo web search, WhatsApp Desktop automation. Google Speech Recognition was removed from the stack on 2026-11-07.
 
 ## Known gaps and next work
 
 1. New Google Cloud project **friday** (project number 754753940977) created 2026-11-07; Gmail API and Calendar API enabled; `credentials.json` swapped to that project's Desktop client (new `client_secret_754753940977-...json`). The old client (project …681978, different client) and the May-2026 tokens are backed up locally as `*.bak-2026-11-07` (gitignored) and will be superseded on first consent — Friday must be restarted and both consents clicked (`unread email`, then `calendar today`); expect an unverified-app warning (click Advanced → continue). If any call returns `403 access_blocked`, the project's OAuth consent screen needs your email under Test users (or the app Published to Production).
 2. First live run (2026-11-07): Ollama, Chroma memory, task DB, Gradio and the wake listener all came up on localhost:7862. A raw `The system cannot find the path specified.` line printed during WhatsApp startup — WhatsApp Desktop appears to be absent on this machine; it does not stop the app, but the message should be a clean "WhatsApp not installed" note (cosmetic). WhatsApp reading/unread counts remain honest placeholders (no passive unread API exists for desktop automation), and sending is unverified.
-3. Wake detection uses Google recognition, not open-source alternatives (owner declined faster-whisper/openWakeWord 2026-11-07; it costs nothing and needs internet). Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
+3. Voice and wake detection are now fully offline (faster-whisper `base` + openWakeWord `friday.onnx`; no internet required, all open-source). Command handling and speech still block the wake loop, limiting interruption support. `friday.onnx` scores below `WAKE_WORD_THRESHOLD` (0.5) do not fire; false-positive profile on real mic input is unmeasured.
 4. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
 5. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
 6. `requirements.txt` exists but is unpinned and clean installation is unverified. Broad exception handling hides diagnostic details.
@@ -208,9 +209,9 @@ Checked items passed offline tests on 2026-11-07. External services, devices, OA
 
 ### Voice and wake listener — voice.py, wakeword.py
 
-- [x] listen: successful transcript, silence, timeout, unavailable mic, and recognition network failure.
+- [x] listen: transcription, silence timeout, microphone failure and transcription failure. Offline engine: capture via sounddevice + energy threshold; decode via faster-whisper `base` (int8, CPU).
 - [ ] speak/stop_speaking: playback completes, cancellation works, repeated calls and concurrent requests do not deadlock.
-- [x] _heard_friday: recognizes intended wake phrase and rejects unrelated speech; document false positives. Substring matches such as "fridayish"/"fridays" are rejected by word-boundary matching; false-positive risk from Google misrecognition remains unquantified.
+- [x] _heard_friday: openWakeWord inference of the bundled `friday.onnx`; scores below `WAKE_WORD_THRESHOLD` (0.5) do not fire; device failures degrade to no wake (not a crash); inline startup highlights and false-positive profile still to be measured live.
 - [ ] start: repeated calls create only one listener; failed device initialization reports a useful state.
 - [x] _handle_detection: idle -> listening -> thinking -> speaking -> idle; no-command and exception paths recover.
 - [x] Voice/UI handoff: each recognized command/response appears once, without stale or mismatched pairs.
@@ -303,6 +304,17 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-07 — Voice and wake listener rebuilt fully offline (open-source)
+
+- Owner replaced Google Speech Recognition with a fully offline, open-source stack; decision supersedes the earlier "keep Google STT" choice.
+- `voice.py`: `listen()` now captures from the microphone via sounddevice (energy-threshold VAD, stops after configurable silence) and transcribes with **faster-whisper** `base` (int8, CPU, model in `D:\tools\voice_models\whisper`, downloaded 2026-11-07). Verified end-to-end offline: a pyttsx3-synthesized "hello world." wav round-trips through `faster-whisper` → transcript "Hello world."
+- `wakeword.py`: the STT-window hunting loop is replaced with **openWakeWord** streaming inference of the bundled custom `friday.onnx` ([1,16,96] float input → [1,1] probability; verified to load and predict in `openwakeword.Model(inference_framework="onnx")`), threshold `WAKE_WORD_THRESHOLD=0.5`. Online only to warm the beep (synthesized locally with numpy + sounddevice).
+- `requirements.txt`: removed `SpeechRecognition` and `pyaudio`; added `faster-whisper` and `openwakeword`.
+- Note: `av` 19.0.2 removed the `metadata_errors` kwarg that faster-whisper 1.2.1 passes on the file-path decode path; the app always passes raw float32 numpy audio, which bypasses that code path. Revisit pins when doing the clean-install verification.
+- Tests rewritten for the offline engines (`tests/test_interactions.py` VoiceTests/WakeTests mock `_record_until_silence`, `_get_whisper_model`, `_ensure_oww`, and `sounddevice.InputStream` instead of `speech_recognition`). Suite re-verified: **124 test methods, all passing**.
+- README synchronized (architecture, prerequisites, machine layout, audit table, gaps, checklist items, this entry).
+- Known follow-ups: live mic test, `friday.onnx` false-positive rate on real input, interruption support (still blocked wake loop).
 
 ### 2026-11-07 — New Google Cloud project "friday"; credentials swapped
 

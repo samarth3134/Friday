@@ -39,27 +39,31 @@ class VoiceTests(IsolatedCase):
     def setUp(self):
         super().setUp()
         self.module = load_isolated("voice")
-        self.sr = MagicMock()
+        import numpy as np
+        self.np = np
 
     def test_listen_transcript_and_timeout_arguments(self):
-        self.sr.Recognizer.return_value.recognize_google.return_value = "test command"
-        with patch.dict(sys.modules, {"speech_recognition": self.sr}):
+        whisper = MagicMock()
+        segment = types.SimpleNamespace(text="test command")
+        whisper.transcribe.return_value = ([segment], types.SimpleNamespace(language="en"))
+        audio = self.np.zeros(16000, dtype="float32")
+        with patch.object(self.module, "_get_whisper_model", return_value=whisper), \
+                patch.object(self.module, "_record_until_silence", return_value=audio) as record:
             self.assertEqual(self.module.listen(3), "test command")
-        self.sr.Recognizer.return_value.listen.assert_called_once_with(
-            self.sr.Microphone.return_value.__enter__.return_value, timeout=3, phrase_time_limit=3)
+        record.assert_called_once_with(samplerate=16000, max_seconds=3)
+        whisper.transcribe.assert_called_once_with(audio, language="en", beam_size=1)
 
     def test_listen_silence_timeout_device_and_network_failures(self):
-        for stage in ("microphone", "listen", "recognize"):
-            with self.subTest(stage=stage):
-                sr = MagicMock()
-                if stage == "microphone":
-                    sr.Microphone.side_effect = OSError("No input device")
-                elif stage == "listen":
-                    sr.Recognizer.return_value.listen.side_effect = TimeoutError("silence")
-                else:
-                    sr.Recognizer.return_value.recognize_google.side_effect = ConnectionError("offline")
-                with patch.dict(sys.modules, {"speech_recognition": sr}):
-                    self.assertIsNone(self.module.listen())
+        with patch.object(self.module, "_record_until_silence", return_value=self.np.zeros(0, dtype="float32")):
+            self.assertIsNone(self.module.listen())
+        with patch.object(self.module, "_record_until_silence", side_effect=OSError("No input device")):
+            self.assertIsNone(self.module.listen())
+        whisper = MagicMock()
+        whisper.transcribe.side_effect = RuntimeError("model unavailable")
+        audio = self.np.zeros(16000, dtype="float32")
+        with patch.object(self.module, "_get_whisper_model", return_value=whisper), \
+                patch.object(self.module, "_record_until_silence", return_value=audio):
+            self.assertIsNone(self.module.listen())
 
     def test_speak_repeated_calls_and_blank_input(self):
         engine = MagicMock()
@@ -91,29 +95,56 @@ class WakeTests(IsolatedCase):
         super().setUp()
         self.module = load_isolated("wakeword")
         self.module._play_beep = MagicMock()
+        import numpy as np
+        self.np = np
 
-    def test_transcript_wake_match_and_unrelated_speech(self):
-        recognizer, source = MagicMock(), MagicMock()
-        with patch.object(self.module, "_ensure_mic", return_value=(recognizer, source)):
-            for text, result in [("Hey FRIDAY", True), ("hello there", False)]:
-                recognizer.recognize_google.return_value = text
-                self.assertEqual(self.module._heard_friday(), result)
-            recognizer.recognize_google.side_effect = ConnectionError()
-            self.assertFalse(self.module._heard_friday())
+    @staticmethod
+    def _fake_stream():
+        import numpy as np
+
+        class Stream:
+            def __init__(self, frames):
+                self._frames = list(frames)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, frame):
+                if self._frames:
+                    return self._frames.pop(0), False
+                return np.zeros((frame, 1), dtype="int16"), False
+
+        return Stream
+
+    def test_heard_friday_triggers_at_threshold(self):
+        import numpy as np
+        oww = MagicMock()
+        oww.predict.return_value = {"friday": 0.6}
+        Stream = self._fake_stream()
+        frames = [np.zeros((1280, 1), dtype="int16")] * 4
+        with patch.object(self.module, "_ensure_oww", return_value=oww), \
+                patch("sounddevice.InputStream", return_value=Stream(frames)):
+            self.assertTrue(self.module._heard_friday(threshold=0.5, window_seconds=1))
+        oww.reset.assert_called_once_with()
 
     def test_regression_unrelated_friday_substring_is_not_wake_word(self):
-        recognizer, source = MagicMock(), MagicMock()
-        recognizer.recognize_google.return_value = "fridayish"
-        with patch.object(self.module, "_ensure_mic", return_value=(recognizer, source)):
-            self.assertFalse(self.module._heard_friday())
+        # OpenWakeWord detection must stay below the default threshold on silence/ambient noise.
+        import numpy as np
+        oww = MagicMock()
+        oww.predict.side_effect = [{"friday": 0.01}, {"friday": 0.02}, {"friday": 0.015}] + [{"friday": 0.01}] * 60
+        Stream = self._fake_stream()
+        frames = [np.zeros((1280, 1), dtype="int16")] * 64
+        with patch.object(self.module, "_ensure_oww", return_value=oww), \
+                patch("sounddevice.InputStream", return_value=Stream(frames)):
+            self.assertFalse(self.module._heard_friday(threshold=0.5, window_seconds=0.5))
+        self.assertGreaterEqual(oww.predict.call_count, 1)
 
-    def test_wake_word_boundaries_and_punctuation(self):
-        recognizer, source = MagicMock(), MagicMock()
-        with patch.object(self.module, "_ensure_mic", return_value=(recognizer, source)):
-            for text, expected in [("Friday!", True), ("hey, FRIDAY.", True), ("fridays", False), ("notfriday", False), ("fridayish", False)]:
-                with self.subTest(text=text):
-                    recognizer.recognize_google.return_value = text
-                    self.assertEqual(self.module._heard_friday(), expected)
+    def test_heard_friday_device_failure(self):
+        with patch.object(self.module, "_ensure_oww", side_effect=RuntimeError("oww unavailable")):
+            self.assertFalse(self.module._heard_friday(window_seconds=0.1))
 
     def test_start_is_idempotent_without_real_thread(self):
         thread = MagicMock()

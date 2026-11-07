@@ -16,8 +16,8 @@ pyautogui
 pygetwindow
 screen-brightness-control
 pyttsx3
-SpeechRecognition
-pyaudio
+faster-whisper
+openwakeword
 numpy
 sounddevice
 gradio
