@@ -20,3 +20,7 @@ whatsapp_session/
 friday.onnx
 friday.tflite
 friday_sample*.wav
+
+# OAuth credential backups - never commit
+*.bak-*
+*.bak

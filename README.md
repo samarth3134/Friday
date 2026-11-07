@@ -146,7 +146,7 @@ Owner decision (2026-11-07): everything used must be open-source or free — not
 
 ## Known gaps and next work
 
-1. Google OAuth tokens were revoked at the 2026-11-07 live boot (`invalid_grant` for Gmail and Calendar; both stored tokens had been refreshed neither since May). The Gmail/Calendar auth path now falls back to the browser consent flow automatically on refresh failure — the next Gmail/Calendar command will open the consent screen, after which tokens refresh silently again. Owner must click through once.
+1. New Google Cloud project **friday** (project number 754753940977) created 2026-11-07; Gmail API and Calendar API enabled; `credentials.json` swapped to that project's Desktop client (new `client_secret_754753940977-...json`). The old client (project …681978, different client) and the May-2026 tokens are backed up locally as `*.bak-2026-11-07` (gitignored) and will be superseded on first consent — Friday must be restarted and both consents clicked (`unread email`, then `calendar today`); expect an unverified-app warning (click Advanced → continue). If any call returns `403 access_blocked`, the project's OAuth consent screen needs your email under Test users (or the app Published to Production).
 2. First live run (2026-11-07): Ollama, Chroma memory, task DB, Gradio and the wake listener all came up on localhost:7862. A raw `The system cannot find the path specified.` line printed during WhatsApp startup — WhatsApp Desktop appears to be absent on this machine; it does not stop the app, but the message should be a clean "WhatsApp not installed" note (cosmetic). WhatsApp reading/unread counts remain honest placeholders (no passive unread API exists for desktop automation), and sending is unverified.
 3. Wake detection uses Google recognition, not open-source alternatives (owner declined faster-whisper/openWakeWord 2026-11-07; it costs nothing and needs internet). Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
 4. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
@@ -303,6 +303,12 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-07 — New Google Cloud project "friday"; credentials swapped
+
+- Owner created a new Google Cloud project **friday** (project number **754753940977**) with a Desktop OAuth client and downloaded its JSON to `C:\Users\Samarth\Downloads\`. `credentials.json` was backed up (`credentials.json.bak-2026-11-07`) and swapped for the new client; the May-2026 tokens (bound to the old client) were backed up (`gmail_token.json.bak-2026-11-07`, `calendar_token.json.bak-2026-11-07`). All backups are gitignored via the new `*.bak-*` rule; `.gitignore` was updated before any staging so these never entered history.
+- Friday must be restarted and both consents re-clicked (`unread email`, `calendar today`). The consent screen will show an "unverified app" warning → Advanced → continue (personal use, one account).
+- README synchronized; no secrets in source, docs or history (credentials are gitignored and were never committed).
 
 ### 2026-11-07 — OAuth re-authorization fallback; owner licensing audit
 
