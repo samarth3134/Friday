@@ -9,6 +9,8 @@ TESSERACT_CMD = os.environ.get("TESSERACT_CMD") or (
     r"D:\tools\tesseract\tesseract.exe" if os.path.exists(r"D:\tools\tesseract\tesseract.exe")
     else (r"C:\Program Files\Tesseract-OCR\tesseract.exe"
           if os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe") else "tesseract"))
+YT_DLP_PATH = os.environ.get("YT_DLP_PATH") or (
+    r"D:\python_3.12\Scripts\yt-dlp.exe" if os.path.exists(r"D:\python_3.12\Scripts\yt-dlp.exe") else "yt-dlp")
 WAKE_WORD_THRESHOLD = 0.5
 USE_SPEECH_FILTER = True
 WHATSAPP_SESSION_PATH = "./whatsapp_session"

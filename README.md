@@ -80,6 +80,7 @@ Contributing flow: edit on a branch or `main`, run `& D:\python_3.12\python.exe 
 | Ollama model store | `D:\ollama\models` (user-level `OLLAMA_MODELS`) |
 | Tesseract OCR 5.4.0 | `C:\Program Files\Tesseract-OCR\tesseract.exe` — installed on C: by the official installer which ignored the D: redirect; owner approved keeping it on C: (2026-11-07). `config.TESSERACT_CMD` uses it (D: path preferred if present). OCR verified end-to-end offline |
 | FFmpeg | `D:\tools\ffmpeg\bin\ffmpeg.exe` / `ffprobe.exe` — BtbN master-latest win64-gpl build, installed and verified 2026-11-07 (lavfi sine encode → ffprobe round-trip succeeded; `config.FFMPEG_LOCATION` resolves to it; `--ffmpeg-location` wired for yt-dlp) |
+| yt-dlp | `D:\python_3.12\Scripts\yt-dlp.exe` (version 2026.03.17, verified 2026-11-07); not on PATH — `config.YT_DLP_PATH` resolves it absolutely (override with the `YT_DLP_PATH` env var) |
 | App data (gitignored) | `memory.db` (tasks), `friday_memory/` (Chroma), `friday_data/`, `temp_audio/`, `screenshots/` |
 | Test output (tracked) | `tests/results/latest.{txt,json}`, `tests/RESULTS.md` |
 | OpenCode temp workspace | `C:\Users\Samarth\AppData\Local\Temp\opencode` |
@@ -98,7 +99,7 @@ These were explicitly set by the project owner and take precedence:
 - **Dependencies:** install only into `D:\python_3.12` unless told otherwise; `D:\tools` for machine tooling.
 - **git identity:** commits authored as `samarth3134 <108995242+samarth3134@users.noreply.github.com>`; the remote requires the `GIT_CONFIG_GLOBAL` exception (see source control).
 
-Music needs FFmpeg and yt-dlp on PATH. OCR needs Tesseract installed and discoverable. WhatsApp needs the Windows Desktop app signed in. Voice needs a microphone and internet for Google recognition.
+Music needs FFmpeg and yt-dlp, both resolved to absolute D: paths by the app (`config.FFMPEG_LOCATION` for yt-dlp's conversion step, `config.YT_DLP_PATH` for the playback CLI); neither needs to be on PATH. OCR needs Tesseract (installed at `C:\Program Files\Tesseract-OCR`). WhatsApp needs the Windows Desktop app signed in. Voice needs a microphone and internet for Google recognition.
 
 For Google integrations, enable Gmail and Calendar APIs, provide Desktop App OAuth credentials in credentials.json, and complete authorization. Gmail requests readonly/send/modify scopes; Calendar requests calendar access.
 
@@ -115,7 +116,7 @@ The main app launches at **http://localhost:7862**. Running ui.py directly uses 
 
 Metadata and imports were checked with **D:\python_3.12\python.exe (Python 3.12.10)** on 2026-11-07. On 2026-11-07 at ~10:20 `screen-brightness-control` and `google-auth-oauthlib` were installed into that interpreter, closing the gap from the morning audit. All 28 directly listed distributions now import cleanly (including gradio, pygame-ce, chromadb, pyaudio, and pytesseract). Import verification proves the modules load; it does not prove live functionality (Ollama models, OAuth, microphone, WhatsApp Desktop), which remains unverified.
 
-`D:\python_3.12` and `D:\python_3.12\Scripts` are absent from this session's PATH. Python and `D:\python_3.12\Scripts\yt-dlp.exe` exist; add both to the PATH used to launch Friday because music launches `yt-dlp` by name.
+`D:\python_3.12` and `D:\python_3.12\Scripts` are absent from this session's PATH; `yt-dlp.exe` exists there (verified 2026-11-07, version 2026.03.17). The app resolves yt-dlp and FFmpeg itself (`config.YT_DLP_PATH` → `D:\python_3.12\Scripts\yt-dlp.exe`, overridable via the `YT_DLP_PATH` environment variable; FFmpeg via `config.FFMPEG_LOCATION`). Adding both folders to PATH is only needed for calling the tools directly from a shell, not for Friday to run.
 
 Ollama was **not installed** on 2026-11-07; a D:-only portable build (**v0.40.15**, `D:\tools\ollama\ollama.exe`) was installed the same day after confirming no existing installation anywhere on the machine. Models live on D: via the user-level `OLLAMA_MODELS=D:\ollama\models` environment variable (set 2026-11-07). A hidden `ollama serve` is running on localhost:11434. Both required models are pulled and visible via `GET http://localhost:11434/api/tags` (llama3:latest, 8.0B Q4_0, 4.66 GB; llava:latest, 7B clip, 4.73 GB) on 2026-11-07. The portable build is not on PATH and does not spawn a desktop app; Ollama must be started explicitly (`D:\tools\ollama\ollama.exe serve`, or just run `ollama` commands, which talk to localhost:11434). A live generate smoke test has not been run (deliberately, per the owner's live-testing rule). FFmpeg (BtbN master-latest win64-gpl build, `D:\tools\ffmpeg\bin`) installed and verified 2026-11-07: an offline lavfi sine encode and an ffprobe round-trip both succeeded; `yt-dlp` 2026.03.17 is present at `D:\python_3.12\Scripts\yt-dlp.exe` (that folder is not on PATH, so adding it or launching Friday with the full path is required for music's CLI path). Tesseract 5.4.0 is installed at `C:\Program Files\Tesseract-OCR` (owner-approved). WhatsApp Desktop was not returned by the current-user app package check. OAuth validity and microphone access remain unverified.
 
@@ -293,6 +294,11 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-07 — yt-dlp path resolved in-app
+
+- `music.py` no longer assumes `yt-dlp` is on PATH; `config.YT_DLP_PATH` resolves it absolutely (D:\python_3.12\Scripts\yt-dlp.exe; verified 2026-11-07, version 2026.03.17) with a `YT_DLP_PATH` environment-variable override and a `yt-dlp` PATH fallback. PATH additions are now optional for direct CLI use only.
+- Suite after `config.py`/`music.py` edits: **124 test methods: 124 passed, 0 failed**. README synchronized (setup PATH note, music prerequisites, machine-layout table).
 
 ### 2026-11-07 — Tesseract verified end-to-end; FFmpeg install started; tooling wired into the app
 

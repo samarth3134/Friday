@@ -8,6 +8,7 @@ from pathlib import Path
 import config as _config
 
 FFMPEG_LOCATION = getattr(_config, "FFMPEG_LOCATION", "") or ""
+YT_DLP_CMD = getattr(_config, "YT_DLP_PATH", "yt-dlp") or "yt-dlp"
 
 from config import YT_MUSIC_QUALITY
 
@@ -262,7 +263,7 @@ def play(query):
             os.remove(final_path)
 
         cmd = [
-            "yt-dlp",
+            YT_DLP_CMD,
             "-x",
             "--audio-format", "mp3",
             "--audio-quality", "0",
