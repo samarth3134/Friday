@@ -1,0 +1,22 @@
+# Credentials, tokens and private keys — never commit these
+credentials.json
+gmail_token.json
+calendar_token.json
+.env
+
+# Runtime data and generated artifacts
+__pycache__/
+*.pyc
+*.pyo
+memory.db
+friday_memory/
+friday_data/
+temp_audio/
+screenshots/
+whatsapp_session/
+*.log
+
+# Binary models and training artifacts (too large / machine-specific)
+friday.onnx
+friday.tflite
+friday_sample*.wav

@@ -1,0 +1,33 @@
+# Friday dependency manifest (import-based, derived from source and README).
+# Versions are intentionally NOT pinned yet: this list has not been validated
+# against a clean install. Pin exact versions after a verified clean-machine
+# setup, then keep this file in sync with README setup notes.
+# Windows is the primary target; pycaw and comtypes are Windows-only.
+
+requests
+chromadb
+duckduckgo-search
+pymupdf          # imported as fitz
+python-docx      # imported as docx
+openpyxl
+send2trash
+psutil
+pyautogui
+pygetwindow
+screen-brightness-control
+pyttsx3
+SpeechRecognition
+pyaudio
+numpy
+sounddevice
+gradio
+pytesseract
+ytmusicapi
+yt-dlp
+pygame
+google-api-python-client  # imported as googleapiclient
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+pycaw
+comtypes

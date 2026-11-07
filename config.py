@@ -1,0 +1,22 @@
+import os
+
+OLLAMA_MODEL = "llama3"
+OLLAMA_VISION_MODEL = "llava"
+WAKE_WORD_THRESHOLD = 0.5
+USE_SPEECH_FILTER = True
+WHATSAPP_SESSION_PATH = "./whatsapp_session"
+GMAIL_CREDENTIALS_PATH = "./credentials.json"
+# The OpenWeather key is read from the OPENWEATHER_API_KEY environment variable.
+# Never commit the key value; it must not appear in source or history.
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
+YT_MUSIC_QUALITY = "bestaudio"
+ALLOWED_ROOTS = ["D:/projects", "C:/Users/Samarth"]
+WINDOWS_USER = "Samarth"
+BLACKLISTED_PATHS = ["/etc", "/System", "C:/Windows"]
+MAX_READ_CHARS = 50000
+REQUIRE_CONFIRM_ON_DELETE = True
+REQUIRE_CONFIRM_ON_WRITE = True
+CHROMA_DB_PATH = "./friday_memory"
+MAX_MEMORY_RESULTS = 5
+WEATHER_CITY = "Bengaluru"
+USER_NAME = "Boss"

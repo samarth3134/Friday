@@ -1,0 +1,283 @@
+# Friday AI Assistant
+
+Friday is a Python desktop assistant with Ollama, a Gradio UI, voice input, persistent memory, and tools for files, system controls, tasks, weather, music, Gmail, WhatsApp, Calendar, and vision.
+
+## Read this first
+
+Read this README and AGENTS.md before working on the project. Update the relevant sections and change log whenever code, configuration, dependencies, setup, or important decisions change. Keep unfinished work and actual test results here so future sessions can resume quickly. Never include credential values or private conversation content.
+
+Last source review: **2026-11-06**. All 18 Python modules and the previous README were read. Binary models, audio, database contents, and OAuth token values were not reviewed. The live app and external integrations have not been run. The 23 failing test methods recorded on 2026-11-07 were fixed in source on 2026-11-07 and further improvements landed the same day; the offline suite was re-run afterwards: 124 test methods, all passing; see the test record below.
+
+## Architecture and source map
+
+Flow: main.py checks Ollama, initializes tasks and memory, starts WhatsApp Desktop and the wake listener, then launches Gradio. Dashboard launch failures fall back to terminal input.
+
+Text or voice -> brain.process/respond -> keyword intent classification -> Chroma memory retrieval -> feature module or Ollama -> save conversation.
+
+The model does not select tools. Routing uses word-boundary keyword matching plus regex extraction, in a fixed priority order. Most tools return results directly; casual replies and search-backed research use Ollama.
+
+| File | Responsibility |
+| --- | --- |
+| main.py | Startup, Ollama check, services, Gradio launch, terminal fallback |
+| brain.py | Classification, argument parsing, routing, memory context, Ollama; respond/process/handle/chat aliases |
+| config.py | Models, paths, file restrictions, weather, user name, music quality |
+| ui.py | Dashboard and Chat tabs, styling, mic button, voice-message polling |
+| dashboard.py | Collects service status and recent memories |
+| voice.py | Google speech recognition and local pyttsx3 output |
+| wakeword.py | Google speech recognition looking for Friday, background thread and state |
+| memory.py | Chroma facts, preferences, conversation pairs, similarity search, recent history |
+| tasks.py | SQLite task CRUD, filters, overdue queries |
+| filesystem.py | Restricted-path search/open/read/list/write/move/trash |
+| system_control.py | Apps, volume, brightness, screenshots, keyboard/mouse, power |
+| search.py | DuckDuckGo web/news results for Ollama |
+| weather.py | OpenWeather current weather, forecast, jacket advice |
+| music.py | YouTube Music search, yt-dlp downloads, pygame playback and queue helpers |
+| messaging.py | Gmail OAuth/read/search/send and WhatsApp delegation |
+| whatsapp_desktop.py | Windows WhatsApp window and keyboard automation |
+| calendar_integration.py | Calendar OAuth, list/create/delete events, free slots |
+| vision.py | Screenshots, llava image analysis, Tesseract OCR |
+
+## Setup and launch
+
+Python 3.10+ is the intended baseline. Windows is the primary target. A `requirements.txt` manifest derived from the imports now exists, but it is **unpinned and has not been validated against a clean install**; use the import-based list below as a reference, with the same caveat:
+
+```powershell
+python -m pip install -r requirements.txt
+# or the original list:
+python -m pip install requests chromadb duckduckgo-search pymupdf python-docx openpyxl send2trash psutil pyautogui pygetwindow screen-brightness-control pyttsx3 SpeechRecognition pyaudio numpy sounddevice gradio pytesseract ytmusicapi yt-dlp pygame google-api-python-client google-auth-oauthlib google-auth-httplib2
+python -m pip install pycaw comtypes
+```
+
+Install and start [Ollama](https://ollama.com/download), then:
+
+```powershell
+ollama pull llama3
+ollama pull llava
+```
+
+Music needs FFmpeg and yt-dlp on PATH. OCR needs Tesseract installed and discoverable. WhatsApp needs the Windows Desktop app signed in. Voice needs a microphone and internet for Google recognition.
+
+For Google integrations, enable Gmail and Calendar APIs, provide Desktop App OAuth credentials in credentials.json, and complete authorization. Gmail requests readonly/send/modify scopes; Calendar requests calendar access.
+
+Run from the project directory because storage paths are relative:
+
+```powershell
+cd D:\projects\Friday
+python main.py
+```
+
+The main app launches at **http://localhost:7862**. Running ui.py directly uses Gradio defaults and skips the full startup sequence. Startup starts the microphone listener and WhatsApp. Dashboard refresh does not activate WhatsApp or other apps; Google services may open an OAuth flow.
+
+### Current machine: dependencies
+
+Metadata and imports were checked with **D:\python_3.12\python.exe (Python 3.12.10)** on 2026-11-07. On 2026-11-07 at ~10:20 `screen-brightness-control` and `google-auth-oauthlib` were installed into that interpreter, closing the gap from the morning audit. All 28 directly listed distributions now import cleanly (including gradio, pygame-ce, chromadb, pyaudio, and pytesseract). Import verification proves the modules load; it does not prove live functionality (Ollama models, OAuth, microphone, weather key, WhatsApp Desktop), which remains unverified.
+
+`D:\python_3.12` and `D:\python_3.12\Scripts` are absent from this session's PATH. Python and `D:\python_3.12\Scripts\yt-dlp.exe` exist; add both to the PATH used to launch Friday because music launches `yt-dlp` by name.
+
+The Ollama portable build was **not installed** as of this audit; a D:-only installation to `D:\tools` is in progress (download started 2026-11-07). FFmpeg and Tesseract locations remain unverified on this machine. WhatsApp Desktop was not returned by the current-user app package check. Ollama's installed models, OAuth validity, microphone access, and weather-key validity remain unverified.
+
+External prerequisites: [Ollama for Windows](https://ollama.com/download/windows) with `llama3` and `llava`; [FFmpeg/ffprobe binaries](https://ffmpeg.org/download.html) for MP3 conversion; [Tesseract engine](https://pypi.org/project/pytesseract/) for OCR; signed-in WhatsApp Desktop; Google OAuth/API configuration and an OpenWeather key. [yt-dlp documents its external dependencies](https://pypi.org/project/yt-dlp/); current YouTube support may also require its JavaScript runtime setup.
+
+## Configuration and stored assets
+
+- Ollama endpoint: localhost:11434; models: llama3 and llava.
+- User name: Boss. Weather city: Bengaluru. Weather currently uses Fahrenheit and miles per hour.
+- Allowed file roots: D:/projects and C:/Users/Samarth (updated for the current Windows account on 2026-11-07). Natural-language user-folder defaults now resolve to the Samarth profile via WINDOWS_USER.
+- File output limit: 50,000 characters; long files return beginning/end excerpts.
+- Write/move/delete confirmation flags are enabled; a confirmation-resume flow exists (ask Friday to do the operation, then answer yes/confirm or cancel; pending state lives in filesystem._pending).
+- memory.db stores tasks; friday_memory/ stores Chroma memories and vectors.
+- credentials.json, gmail_token.json, calendar_token.json contain private Google credentials/tokens.
+- config.py currently contains a weather API key. Never reproduce its value in documentation.
+- temp_audio/current_track.mp3 is the music playback file. screenshots/ is created on demand.
+- friday.onnx, friday.tflite, and five friday_sample WAV files exist but are not used by the current wake listener.
+- __pycache__/ contains generated files, including an old training-module cache without corresponding source.
+
+## Known gaps and next work
+
+1. WhatsApp reading/unread counts remain honest placeholders (no passive unread API exists for desktop automation) and sending is unverified — recipients, Unicode handling and delivery cannot be confirmed. The desktop module now preserves the PyAutoGUI failsafe and startup reports the failing cause immediately with a bounded 10-second wait.
+2. Wake detection uses Google recognition, not Picovoice or bundled models. Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
+3. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
+4. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
+5. `requirements.txt` exists but is unpinned and clean installation is unverified. `.gitignore` was added, but this directory is not a git repository yet, so it has no effect. Broad exception handling hides diagnostic details.
+6. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
+7. Ollama is not installed on this machine as of this audit (a D:-only portable installation was started 2026-11-07). Models llama3 and llava, plus Ollama runtime availability on PATH/D:, remain prerequisites for live use.
+8. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls, server-local forecast grouping) are fixed and covered by regression tests in tests/RESULTS.md.
+
+## Function and acceptance-test checklist
+
+Checked items passed offline tests on 2026-11-07. External services, devices, OAuth, process launches, and Chroma are mocked; checks establish code behavior, not live integration readiness. SQLite and plain-file tests use real temporary fixtures. Unchecked means failed, partly covered, or not verified; consult tests/RESULTS.md and the detailed test log. Check a box only after recording the test and result. Known bugs remain unchecked until fixed and verified. Use mocks and temporary storage for automated tests; desktop/external actions need deliberate integration tests.
+
+### Startup and configuration — main.py, config.py
+
+- [x] check_ollama: healthy endpoint proceeds; timeout, refused connection, and HTTP errors give useful setup guidance.
+- [x] main/initializers: missing optional dependencies do not prevent usable text mode; required failures are clearly reported.
+- [x] launch_dashboard: mocked launch requests port 7862; simulated occupied-port/Gradio failure enters terminal fallback. Actual browser rendering remains unverified.
+- [x] terminal_loop: blank input is ignored; exit, quit, EOF, and Ctrl+C terminate cleanly.
+- [x] Configuration: paths resolve for the current Windows user; missing keys/models are reported without revealing secrets.
+
+### Intent classification and routing — brain.py
+
+- [x] classify_intent: canonical examples cover all 22 currently reachable intents and uppercase/punctuation variants. Collision handling is tested separately below.
+- [x] Collision regressions: list tasks -> task; show weather -> weather; show calendar -> calendar; playlist request -> music; music volume -> intended music control.
+- [x] File intent regressions: list folder, find file, read file, open file, create file, and delete file remain distinct.
+- [x] Extractors: quoted paths, spaces, Windows drive paths, natural folder names, and missing arguments produce correct values or clarification.
+- [x] respond/process/handle/chat: empty/non-string input is safe; aliases behave consistently; tool exceptions produce useful failures.
+- [x] _ollama: valid response, empty response, malformed JSON, timeout, missing model, and HTTP errors are handled.
+- [x] Memory context and conversation saving: retrieval/save failures do not break replies; one exchange is saved per request.
+- [ ] _route_*: each handler calls the intended function with correct parsed arguments, using mocked modules and no real side effects.
+
+### Files — filesystem.py
+
+- [ ] _check_path: allow valid roots; reject outside roots, blacklisted directories, traversal, and symlink/junction escapes.
+- [x] find_file/list_dir: match names, sort folders/files, handle empty/missing/unreadable paths and nested folders.
+- [ ] read_file: fixtures for text, JSON, CSV, PDF, DOCX, XLSX, unsupported extensions, invalid encoding, and directories.
+- [x] _cap_output: short files remain intact; long output includes expected start/end excerpts and accurate labeling.
+- [x] write_file/move_file/delete_file: request approval, preserve pending arguments, execute once after confirmation, and cancel cleanly. Pending requests store resolved path/content/destination in filesystem._pending; brain routes yes/confirm/cancel to it. Verified by offline tests.
+- [ ] Mutation errors: permission failures, existing destinations, missing sources, and trash failures do not falsely report success; use temporary fixtures.
+- [x] open_file: platform command dispatch is correct with process launch mocked.
+
+### Tasks — tasks.py
+
+- [x] _init_db/add_task: fresh temporary database initializes; blank titles fail; valid titles, due dates, priorities persist.
+- [x] list_tasks: all/pending/done/today filters and ordering match seeded records, including empty results.
+- [x] complete_task/delete_task: numeric ID and exact title work; missing and already-completed tasks respond correctly.
+- [x] get_overdue: yesterday is overdue, today/future are not, completed tasks are excluded.
+- [x] Router integration: add task with date/priority, complete task 1, delete task 1, and list tasks reach correct operations.
+
+### Memory — memory.py
+
+- [x] save_memory: correct text, ID, timestamp and fact/preference metadata sent to mocked Chroma; empty input ignored. Real embedding/storage remains unverified.
+- [x] search_memory: mocked result mapping includes text/metadata/distance; empty results and invalid queries are safe.
+- [ ] search_memory: verify real Chroma embeddings, relevance and empty-collection behavior.
+- [x] save_conversation/get_recent: mocked records pair roles correctly, preserve chronology and return the last N pairs.
+- [ ] save_conversation/get_recent: verify real persistent storage survives restart.
+- [x] Remember requests: avoid duplicate preference records; Chroma failures degrade gracefully. Use an isolated collection.
+
+### Voice and wake listener — voice.py, wakeword.py
+
+- [x] listen: successful transcript, silence, timeout, unavailable mic, and recognition network failure.
+- [ ] speak/stop_speaking: playback completes, cancellation works, repeated calls and concurrent requests do not deadlock.
+- [x] _heard_friday: recognizes intended wake phrase and rejects unrelated speech; document false positives. Substring matches such as "fridayish"/"fridays" are rejected by word-boundary matching; false-positive risk from Google misrecognition remains unquantified.
+- [ ] start: repeated calls create only one listener; failed device initialization reports a useful state.
+- [x] _handle_detection: idle -> listening -> thinking -> speaking -> idle; no-command and exception paths recover.
+- [x] Voice/UI handoff: each recognized command/response appears once, without stale or mismatched pairs.
+- [ ] Interruption and shutdown: test wake during speech and clean thread/device release; implement missing lifecycle support as needed.
+
+### UI and dashboard — ui.py, dashboard.py
+
+- [ ] build_app: supported Gradio version renders tabs, CSS, chat, buttons, and timers.
+- [x] _append_response/_mic_response: mocked submits preserve history, empty input adds no messages, and successful microphone input is routed.
+- [x] _mic_response: explain microphone failure visibly (previously returned only a generic handler label; the fix shows a "could not hear" explanation).
+- [x] _format_status: escapes service content and handles unavailable services/missing memory.
+- [x] get_status: slow/failing integrations do not block the entire UI; refreshes use caching and avoid unintended desktop focus changes. (Status is cached for 60 seconds in dashboard.STATUS_CACHE_TTL_SECONDS; the timer can serve data up to one minute old.)
+- [ ] _chat_tick: concurrent submissions/timers do not lose or duplicate chat messages; separate browser sessions stay consistent.
+- [ ] Unread email display: distinguish actual total from the maximum five fetched previews.
+
+### Search and weather — search.py, weather.py
+
+- [x] web_search/news_search: format up to five title/snippet/URL results; clean markup; handle empty results and network errors.
+- [ ] Search routing: expected query is extracted and results reach Ollama; failure is represented honestly.
+- [x] get_weather: valid city, missing key, unknown city, timeout, and malformed response.
+- [x] get_forecast: groups days correctly and reports units; city timezone behavior is verified. (Forecast days are grouped using the city UTC offset from OpenWeather's city.timezone field; verified offline with an explicit +05:30/-08:00 fixture.)
+- [x] should_bring_jacket: cold, warm/dry, rain, drizzle, and thunderstorm cases use explicit unit assumptions.
+- [x] City parsing: lowercase and multiword city names work.
+
+### Music — music.py
+
+- [x] _search_track/play: found song, no result, missing video ID, absent dependencies, failed download, and missing FFmpeg.
+- [x] Successful play updates now_playing with correct title/artist; replacing a track handles locked files safely.
+- [x] pause/resume: resume preserves position; pausing does not accidentally advance the queue.
+- [ ] add_to_queue/clear_queue/skip: queue order, empty queue, failed track, and concurrent enqueue behave correctly. (Routing from brain is implemented and covered by offline tests; queue order, empty queue and pause/clear dispatch are verified; failed-track skip and concurrent enqueue remain unverified.)
+- [x] set_volume: clamps 0-100 and handles invalid input; play_mood maps supported moods and rejects unknown ones.
+- [x] previous returns an honest unsupported response; failures never falsely announce successful playback.
+
+### Gmail and WhatsApp — messaging.py, whatsapp_desktop.py
+
+- [x] OAuth: missing credentials, first authorization, refresh, revoked token, and API failure; automated tests use fake credentials/services.
+- [x] gmail_get_unread/gmail_search: empty/multiple results, limits, sender/subject/snippet extraction, and query forwarding.
+- [x] gmail_read/_extract_body: plain text, nested multipart, HTML-only, base64 padding, and non-ASCII content.
+- [x] gmail_send: mocked request contains correct recipient/subject/body and handles API errors without claiming success.
+- [x] Gmail functions remain available when WhatsApp dependencies are missing.
+- [x] WhatsApp startup: missing app/window and activation failure time out accurately without endless waits.
+- [x] wa_read_chat/wa_get_unread: clearly state current limitations; do not claim to have retrieved unread counts or text.
+- [ ] wa_send: verify intended recipient, Unicode text, focus, and actual send outcome; mock keystrokes by default and use only a deliberately chosen test chat for live validation.
+
+### Calendar — calendar_integration.py
+
+- [ ] get_today/get_upcoming: correct local-day boundaries, timezone offsets, empty results, recurring events, and pagination.
+- [x] create_event: valid date/time/duration, invalid input, correct IANA timezone, and API error handling.
+- [x] delete_event: exact title/date lookup, no match, duplicate titles, and failed deletion.
+- [x] find_free_slots: empty day, overlapping events, all-day events, events outside work hours, fully booked days, and timezone conversion.
+- [ ] Router: create/delete commands with today or other overlapping keywords do not accidentally become list requests.
+
+### Vision — vision.py
+
+- [ ] analyze_image/identify_object: valid fixture, missing path, directory, unsupported/corrupt image, and Ollama errors.
+- [x] _ask_ollama: correct model, base64 image and prompt; empty response, timeout, and HTTP errors.
+- [x] analyze_screen/explain_error: capture mocked screenshot, use intended prompt, and recover from capture failure.
+- [x] read_text_from_screen: readable text, blank image, absent Tesseract, and OCR failure; avoid duplicate unnecessary captures.
+
+### System controls — system_control.py
+
+- [ ] open_app/_find_windows_app: known aliases, PATH discovery, missing app, protocol launch, and window positioning with mocks.
+- [x] close_app/list_running_apps: exact intended targets, unavailable process metadata, permission failures, and no matches.
+- [x] set_volume/mute/unmute/set_brightness: supported platform dispatch, bounds, missing dependencies, and device failures.
+- [x] take_screenshot: unique filenames and clear permission/capture errors.
+- [x] click/type_text/hotkey: validate arguments; test dispatch with mocked desktop APIs.
+- [x] lock_screen/shutdown/restart/cancel_shutdown/sleep_mode: validate command construction and delays using mocks only; never execute power actions incidentally during tests.
+
+### Project-wide acceptance
+
+- [ ] Add a reproducible dependency manifest and verify clean installation. (requirements.txt added 2026-11-07; it is unpinned and clean installation is still unverified.)
+- [x] Add focused automated tests with isolated databases, mocked network/desktop APIs, and deterministic dates.
+- [ ] Verify unavailable integrations leave chat usable and expose diagnostic errors without leaking secrets.
+- [ ] Verify startup/shutdown and concurrent voice/chat/dashboard behavior in a deliberate manual smoke test.
+- [x] Keep this checklist, setup notes, known gaps, and change log synchronized with every meaningful change.
+
+## Test record
+
+Run on **2026-11-07** with the user's Python 3.12.10:
+
+```powershell
+& D:\python_3.12\python.exe -B tests/run_tests.py
+```
+
+**124 test methods: 124 passed, 0 failed, 0 errors, 0 skipped.** The 23 methods that failed earlier the same day (27 failing assertions) were fixed in source and now pass, along with 6 new regression tests (task-router integration, music queue routing, pending-file-confirmation interception, filesystem pending flow, forecast city timezone, dashboard status cache). Exit code 0 is expected while the documented regressions stay fixed.
+
+See [tests/RESULTS.md](tests/RESULTS.md), [full test output](tests/results/latest.txt), and [machine-readable results](tests/results/latest.json). Tests use stdlib unittest and mocks, plus temporary SQLite/file fixtures. The runner blocks real socket connections and subprocess/app launches. Application source, real databases, credentials, and user files were not changed by the test run.
+
+Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddings/persistence, full document fixtures, symlink/junction restrictions, concurrency and clean installation remain unverified. Checked items have the offline scope stated above; partially tested broad requirements remain unchecked.
+
+
+## Change log
+
+### 2026-11-07 — Regression fixes, documentation sync, and gap implementations
+
+- Morning run recorded 23 failing methods; those were fixed in source (word-boundary intent matching with file/service priority rules, calendar IANA timezone creation/local-day bounds/pagination/negative-duration and all-day free-slot handling, task due-date/priority extraction and identifier parsing, music now_playing after playback and locked-file replacement, bounded WhatsApp startup with immediate cause reporting and preserved PyAutoGUI failsafe, lazy WhatsApp import in messaging.py, single OCR capture, visible mic failure explanation, one preference per remember request, dashboard no longer drives WhatsApp UI, honest unverified-send reporting). Re-run: 124 methods, all passing.
+- Full offline suite re-verified at 10:14 and 11:00 (124 methods, 0 failures). README checklist items covered by passing tests were checked; partially covered or unverified items remain unchecked.
+- Installed `screen-brightness-control` and `google-auth-oauthlib` into D:\python_3.12; all 28 listed distributions import cleanly in that interpreter (verified directly, not just metadata).
+- Implemented and tested the file-mutation confirmation workflow: pending write/move/delete requests are stored (resolved path/content/destination) and executed exactly once on `yes`/`confirm`; `cancel` discards them; `brain` intercepts plain yes/no answers before intent classification.
+- Dashboard `get_status` is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS) with an explicit `clear_status_cache()`; the 1-second UI timer no longer calls external services every tick.
+- Music queue routing: `add X to (the) queue` / `put X on (the) queue` / `add to queue X` → `add_to_queue`; `clear (the) queue` → `clear_queue`. `skip`/`previous` were already routed.
+- Weather forecast day grouping now uses the city's UTC offset from OpenWeather's `city.timezone` field (server-local time remains the fallback when the field is absent); covered by an offline test.
+- Task-router integration tests added (delete task 1, list tasks, list overdue tasks); forecast and cache behavior covered by new regression tests.
+- Configuration for the current Windows account: `ALLOWED_ROOTS` is now `D:/projects` and `C:/Users/Samarth`; `WINDOWS_USER` = `Samarth`.
+- Added unpinned `requirements.txt` (import-derived; clean install unverified) and `.gitignore` (no effect until this directory is a git repository).
+- Ollama is **not** installed; a D:-only portable installation was started 2026-11-07 (see known gaps). No FFmpeg/Tesseract locations were found. Live OAuth, WhatsApp delivery, audio hardware, rendered Gradio UI, and Chroma persistence remain unverified.
+- Next work: finish the Ollama installation and pull llama3/llava, then perform deliberate live integration checks once configuration is ready; keep this README synchronized with test results.
+
+### 2026-11-07 — Offline tests and installed-package audit
+
+- Added 103 offline test methods across all feature areas; checked passing acceptance items and left failures/partial coverage unchecked.
+- Recorded 80 passing methods and 23 failing methods (27 failure assertions); no harness errors or skips.
+- Added an isolated test runner and detailed result files. No application behavior was changed or bugs fixed.
+- Inspected distribution metadata in D:\python_3.12: screen-brightness-control and google-auth-oauthlib are missing; documented PATH/external-tool limits and installation commands.
+- Next work: fix reproduced regressions, rerun the suite, then perform deliberate live integration checks once dependencies/configuration are ready.
+
+### 2026-11-06 — Project context and acceptance checklist
+
+- Read all 18 source modules and mapped startup, routing, storage, and integrations.
+- Replaced stale Spotify, Picovoice, WhatsApp Web, and port instructions with current source-based descriptions.
+- Documented known implementation gaps and a feature-by-feature acceptance-test checklist.
+- Added AGENTS.md instructions to read this file first and update it alongside future changes.
+- Validation: documentation compared against source; application code unchanged; no app launch or integration tests performed.
