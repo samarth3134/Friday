@@ -1,4 +1,4 @@
-# Offline test results — 2026-11-07T10:23:52+05:30
+# Offline test results — 2026-11-07T10:36:12+05:30
 
 **124 methods: 124 passed, 0 failed; 0 errors, 0 skipped.**
 
@@ -135,7 +135,7 @@ None. All executed cases passed; unchecked README acceptance items remain unveri
 - [x] `tests.test_services.WeatherTests.test_get_weather_success_and_units`
 - [x] `tests.test_services.WeatherTests.test_jacket_cold_warm_and_precipitation`
 - [x] `tests.test_services.WeatherTests.test_regression_forecast_explicit_units`
-- [x] `tests.test_services.WeatherTests.test_regression_forecast_groups_days_by_city_timezone`
+- [x] `tests.test_services.WeatherTests.test_regression_forecast_requests_city_local_timezone`
 - [x] `tests.test_whatsapp.WhatsAppTests.test_actions_return_readiness_and_activation_errors_without_typing`
 - [x] `tests.test_whatsapp.WhatsAppTests.test_find_visible_window_and_activate`
 - [x] `tests.test_whatsapp.WhatsAppTests.test_launch_dispatch_and_failure`

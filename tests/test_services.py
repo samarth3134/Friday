@@ -46,72 +46,77 @@ class SearchTests(unittest.TestCase):
 class WeatherTests(unittest.TestCase):
     def setUp(self):
         self.mod = load_module("weather")
-        self.mod.OPENWEATHER_API_KEY = "fixture-key"
+        self.calls = []
 
-    @staticmethod
-    def data(temp=75, condition="clear sky"):
-        return {"name": "Fixture City", "main": {"temp": temp, "humidity": 50},
-                "weather": [{"description": condition}], "wind": {"speed": 5}}
+    LOCATION = {"name": "Fixture City", "latitude": 1.0, "longitude": 2.0, "timezone": "Asia/Kolkata"}
+
+    @classmethod
+    def current(cls, temp=75, code=0, humidity=50, wind=5):
+        return {"current": {"temperature_2m": temp, "relative_humidity_2m": humidity,
+                            "weather_code": code, "wind_speed_10m": wind}}
+
+    def dispatch(self, weather_data):
+        def _get(url, params):
+            self.calls.append((url, params))
+            if url == self.mod.GEOCODING_URL:
+                return {"results": [self.LOCATION]}
+            return weather_data
+        return _get
 
     def test_get_weather_success_and_units(self):
-        with patch.object(self.mod, "_get", return_value=self.data()) as get:
+        with patch.object(self.mod, "_get", side_effect=self.dispatch(self.current())) as get:
             result = self.mod.get_weather(" Fixture City ")
-        get.assert_called_once_with(self.mod.CURRENT_URL, "Fixture City")
         self.assertIn("75 degrees and clear sky", result)
         self.assertIn("50 percent", result)
         self.assertIn("5 miles per hour", result)
-        self.mod.requests.get.return_value.json.return_value = self.data()
-        self.mod._get(self.mod.CURRENT_URL, "Fixture City")
-        self.assertEqual(self.mod.requests.get.call_args.kwargs["params"]["units"], "imperial")
+        forecast_call = next(call for call in self.calls if call[0] == self.mod.FORECAST_URL)
+        self.assertEqual(forecast_call[1]["temperature_unit"], "fahrenheit")
+        self.assertEqual(forecast_call[1]["wind_speed_unit"], "mph")
+        self.assertEqual(forecast_call[1]["timezone"], "auto")
 
     def test_get_weather_configuration_and_errors(self):
-        with patch.object(self.mod, "OPENWEATHER_API_KEY", ""):
-            self.assertIn("API key", self.mod.get_weather("City"))
-        with patch.object(self.mod, "WEATHER_CITY", ""):
-            self.assertIn("which city", self.mod.get_weather(""))
-        for failure in (TimeoutError("timeout"), RuntimeError("404 city not found")):
-            with self.subTest(failure=str(failure)), patch.object(self.mod, "_get", side_effect=failure):
-                self.assertEqual(self.mod.get_weather("Unknown"), "I could not get the weather right now.")
-        with patch.object(self.mod, "_get", return_value={}):
-            self.assertEqual(self.mod.get_weather("City"), "I could not get the weather right now.")
+        self.assertIn("Tell me which city", self.mod.get_weather("   "))
+        with patch.object(self.mod, "_get", side_effect=TimeoutError("timeout")):
+            self.assertEqual(self.mod.get_weather("Unknown"), "I could not get the weather right now.")
+        with patch.object(self.mod, "_get", return_value={"results": []}):
+            self.assertIn("could not find the city", self.mod.get_weather("Unknown"))
+        with patch.object(self.mod, "_get", side_effect=ValueError("malformed json")):
+            self.assertEqual(self.mod.get_weather("Unknown"), "I could not get the weather right now.")
 
     def test_jacket_cold_warm_and_precipitation(self):
-        cases = [(60, "clear", True), (61, "clear", False), (80, "rain", True),
-                 (80, "drizzle", True), (80, "thunderstorm", True)]
-        for temperature, condition, expected in cases:
-            with self.subTest(temp=temperature, condition=condition), patch.object(
-                    self.mod, "_get", return_value=self.data(temperature, condition)):
+        for temp, code, expected in [(60, 0, True), (61, 0, False), (80, 61, True),
+                                     (80, 51, True), (80, 95, True)]:
+            with self.subTest(temp=temp, code=code), patch.object(
+                    self.mod, "_get", side_effect=self.dispatch(self.current(temp, code))):
                 self.assertEqual(self.mod.should_bring_jacket("City").startswith("Yes"), expected)
-        rainy = self.data(80)
-        rainy["rain"] = {"1h": 1}
-        with patch.object(self.mod, "_get", return_value=rainy):
-            self.assertTrue(self.mod.should_bring_jacket("City").startswith("Yes"))
 
     def test_forecast_grouping_and_empty_response(self):
-        stamp = datetime(2026, 11, 6, 12).timestamp()
-        rows = [{"dt": stamp + hours * 3600, "main": {"temp": temp},
-                 "weather": [{"description": "clear"}]} for hours, temp in [(0, 60), (3, 80), (24, 70)]]
-        with patch.object(self.mod, "_get", return_value={"list": rows}):
+        data = {"daily": {"time": ["2026-11-06", "2026-11-07"],
+                          "weather_code": [0, 2],
+                          "temperature_2m_max": [80, 70],
+                          "temperature_2m_min": [60, 60]}}
+        with patch.object(self.mod, "_get", side_effect=self.dispatch(data)):
             result = self.mod.get_forecast("City")
-            self.assertIn("Friday: clear, low 60, high 80", result)
-            self.assertIn("Saturday: clear, low 70, high 70", result)
-        with patch.object(self.mod, "_get", return_value={"list": []}):
+        self.assertIn("Friday: clear sky, low 60, high 80 degrees Fahrenheit", result)
+        self.assertIn("Saturday: partly cloudy, low 60, high 70 degrees Fahrenheit", result)
+        with patch.object(self.mod, "_get", side_effect=self.dispatch({"daily": {"time": []}})):
             self.assertIn("could not find a forecast", self.mod.get_forecast("City"))
 
     def test_regression_forecast_explicit_units(self):
-        row = {"dt": datetime(2026, 11, 6, 12).timestamp(), "main": {"temp": 75}, "weather": []}
-        with patch.object(self.mod, "_get", return_value={"list": [row]}):
-            self.assertRegex(self.mod.get_forecast("City"), r"Fahrenheit|\u00b0F")
+        data = {"daily": {"time": ["2026-11-06"], "weather_code": [0],
+                          "temperature_2m_max": [75], "temperature_2m_min": [70]}}
+        with patch.object(self.mod, "_get", side_effect=self.dispatch(data)):
+            self.assertIn("degrees Fahrenheit", self.mod.get_forecast("City"))
 
-    def test_regression_forecast_groups_days_by_city_timezone(self):
-        # 2026-11-06 02:00 UTC is still Thursday evening in UTC-8 (PST).
-        stamp = datetime(2026, 11, 6, 2, tzinfo=timezone.utc).timestamp()
-        rows = [{"dt": stamp, "main": {"temp": 70}, "weather": [{"description": "clear"}]},
-                {"dt": stamp + 8 * 3600, "main": {"temp": 80}, "weather": [{"description": "clear"}]}]
-        with patch.object(self.mod, "_get", return_value={"list": rows, "city": {"timezone": -8 * 3600}}):
-            result = self.mod.get_forecast("City")
-        self.assertIn("Thursday", result)
-        self.assertIn("Friday", result)
+    def test_regression_forecast_requests_city_local_timezone(self):
+        # The API itself groups day boundaries in the city's timezone (timezone=auto),
+        # which keeps forecast days on city-local dates.
+        data = {"daily": {"time": ["2026-11-06"], "weather_code": [0],
+                          "temperature_2m_max": [75], "temperature_2m_min": [70]}}
+        with patch.object(self.mod, "_get", side_effect=self.dispatch(data)):
+            self.mod.get_forecast("City")
+        forecast_call = next(call for call in self.calls if call[0] == self.mod.FORECAST_URL)
+        self.assertEqual(forecast_call[1]["timezone"], "auto")
 
 
 class GmailTests(unittest.TestCase):

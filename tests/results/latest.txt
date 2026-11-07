@@ -109,7 +109,7 @@ test_get_weather_configuration_and_errors (tests.test_services.WeatherTests.test
 test_get_weather_success_and_units (tests.test_services.WeatherTests.test_get_weather_success_and_units) ... ok
 test_jacket_cold_warm_and_precipitation (tests.test_services.WeatherTests.test_jacket_cold_warm_and_precipitation) ... ok
 test_regression_forecast_explicit_units (tests.test_services.WeatherTests.test_regression_forecast_explicit_units) ... ok
-test_regression_forecast_groups_days_by_city_timezone (tests.test_services.WeatherTests.test_regression_forecast_groups_days_by_city_timezone) ... ok
+test_regression_forecast_requests_city_local_timezone (tests.test_services.WeatherTests.test_regression_forecast_requests_city_local_timezone) ... ok
 test_actions_return_readiness_and_activation_errors_without_typing (tests.test_whatsapp.WhatsAppTests.test_actions_return_readiness_and_activation_errors_without_typing) ... ok
 test_find_visible_window_and_activate (tests.test_whatsapp.WhatsAppTests.test_find_visible_window_and_activate) ... ok
 test_launch_dispatch_and_failure (tests.test_whatsapp.WhatsAppTests.test_launch_dispatch_and_failure) ... ok
@@ -124,6 +124,6 @@ test_send_sequence_ascii_and_unicode_forwarding_only (tests.test_whatsapp.WhatsA
 test_start_creates_daemon_without_running_it (tests.test_whatsapp.WhatsAppTests.test_start_creates_daemon_without_running_it) ... ok
 
 ----------------------------------------------------------------------
-Ran 124 tests in 0.909s
+Ran 124 tests in 1.344s
 
 OK

@@ -30,7 +30,7 @@ The model does not select tools. Routing uses word-boundary keyword matching plu
 | filesystem.py | Restricted-path search/open/read/list/write/move/trash |
 | system_control.py | Apps, volume, brightness, screenshots, keyboard/mouse, power |
 | search.py | DuckDuckGo web/news results for Ollama |
-| weather.py | OpenWeather current weather, forecast, jacket advice |
+| weather.py | Open-Meteo current weather, forecast, jacket advice (open-source, no API key) |
 | music.py | YouTube Music search, yt-dlp downloads, pygame playback and queue helpers |
 | messaging.py | Gmail OAuth/read/search/send and WhatsApp delegation |
 | whatsapp_desktop.py | Windows WhatsApp window and keyboard automation |
@@ -55,6 +55,47 @@ ollama pull llama3
 ollama pull llava
 ```
 
+### Source control (git / GitHub)
+
+Friday is developed in `D:\projects\Friday`, a git repository published at **https://github.com/samarth3134/Friday** (public, owned by samarth3134; pushed 2026-11-07). Secrets, runtime data, model binaries and bytecode caches are gitignored; `.gitattributes` normalizes text to LF.
+
+Git and the GitHub CLI are installed **portable on D:** (installed 2026-11-07) because the machine had no git:
+
+- `D:\tools\mingit` — MinGit 2.56.0.windows.4 (git); call `D:\tools\mingit\cmd\git.exe` or add `D:\tools\mingit\cmd` to PATH.
+- `D:\tools\gh` — GitHub CLI 2.103.3, authenticated as `samarth3134` (HTTPS device flow).
+- `D:\tools\mingit-global.gitconfig` — global config holding a `safe.directory` exception for `D:/projects/Friday` (this folder's ownership record differs from the current SID). Every git invocation in this setup needs `GIT_CONFIG_GLOBAL=D:\tools\mingit-global.gitconfig` set first (e.g. `$env:GIT_CONFIG_GLOBAL = 'D:\tools\mingit-global.gitconfig'`). Git also fails to be found by gh unless `D:\tools\mingit\cmd` is on PATH.
+- Commits in this repo are authored as `samarth3134 <108995242+samarth3134@users.noreply.github.com>` (repo-local config).
+
+Contributing flow: edit on a branch or `main`, run `& D:\python_3.12\python.exe -B tests/run_tests.py`, keep this README synchronized, commit and push with the environment variables above.
+
+### Machine layout and paths (this machine, verified 2026-11-07)
+
+| What | Location |
+| --- | --- |
+| Repository / working tree | `D:\projects\Friday` → public repo https://github.com/samarth3134/Friday |
+| Python interpreter + site-packages | `D:\python_3.12\python.exe` (3.12.10); its `Scripts` is **not** on PATH |
+| Git and GitHub CLI (portable) | `D:\tools\mingit\cmd\git.exe`; `D:\tools\gh` (gh.exe under `gh_2.103.3_windows_amd64\bin`) |
+| Global git exception | `D:\tools\mingit-global.gitconfig` (`safe.directory` for `D:/projects/Friday`) — required for every git/gh call |
+| Ollama (portable, D:-only) | `D:\tools\ollama\ollama.exe` (v0.40.15); not on PATH |
+| Ollama model store | `D:\ollama\models` (user-level `OLLAMA_MODELS`) |
+| App data (gitignored) | `memory.db` (tasks), `friday_memory/` (Chroma), `friday_data/`, `temp_audio/`, `screenshots/` |
+| Test output (tracked) | `tests/results/latest.{txt,json}`, `tests/RESULTS.md` |
+| OpenCode temp workspace | `C:\Users\Samarth\AppData\Local\Temp\opencode` |
+| Language/session | Windows account `DESKTOP-GQN46T5/Samarth`; WINDOWS_USER=`Samarth`; ALLOWED_ROOTS=`D:/projects`, `C:/Users/Samarth` |
+
+### Owner instructions and standing constraints
+
+These were explicitly set by the project owner and take precedence:
+
+- **Install everything on D:** whenever possible (Ollama, tools, models). Ask before installing anything on C: or changing system-wide settings.
+- **Weather uses open-source tooling** — now Open-Meteo (no key); do not reintroduce a key-gated weather API.
+- **Never commit secrets** (credentials.json, tokens, keys). The repo is public; the OpenWeather key was removed from source entirely and survives only in the unused `OPENWEATHER_API_KEY` user environment variable.
+- **Never reproduce keys or token values** in this README or any file.
+- **Keep this README synchronized** with project status: what was done, where things live, what the owner said to do or not do, and test results — update it in the same task as the change.
+- **Tests:** offline suite must stay green before committing; use mocks/temp fixtures; live/desktop/OAuth actions need explicit deliberate verification and owner participation.
+- **Dependencies:** install only into `D:\python_3.12` unless told otherwise; `D:\tools` for machine tooling.
+- **git identity:** commits authored as `samarth3134 <108995242+samarth3134@users.noreply.github.com>`; the remote requires the `GIT_CONFIG_GLOBAL` exception (see source control).
+
 Music needs FFmpeg and yt-dlp on PATH. OCR needs Tesseract installed and discoverable. WhatsApp needs the Windows Desktop app signed in. Voice needs a microphone and internet for Google recognition.
 
 For Google integrations, enable Gmail and Calendar APIs, provide Desktop App OAuth credentials in credentials.json, and complete authorization. Gmail requests readonly/send/modify scopes; Calendar requests calendar access.
@@ -70,13 +111,13 @@ The main app launches at **http://localhost:7862**. Running ui.py directly uses 
 
 ### Current machine: dependencies
 
-Metadata and imports were checked with **D:\python_3.12\python.exe (Python 3.12.10)** on 2026-11-07. On 2026-11-07 at ~10:20 `screen-brightness-control` and `google-auth-oauthlib` were installed into that interpreter, closing the gap from the morning audit. All 28 directly listed distributions now import cleanly (including gradio, pygame-ce, chromadb, pyaudio, and pytesseract). Import verification proves the modules load; it does not prove live functionality (Ollama models, OAuth, microphone, weather key, WhatsApp Desktop), which remains unverified.
+Metadata and imports were checked with **D:\python_3.12\python.exe (Python 3.12.10)** on 2026-11-07. On 2026-11-07 at ~10:20 `screen-brightness-control` and `google-auth-oauthlib` were installed into that interpreter, closing the gap from the morning audit. All 28 directly listed distributions now import cleanly (including gradio, pygame-ce, chromadb, pyaudio, and pytesseract). Import verification proves the modules load; it does not prove live functionality (Ollama models, OAuth, microphone, WhatsApp Desktop), which remains unverified.
 
 `D:\python_3.12` and `D:\python_3.12\Scripts` are absent from this session's PATH. Python and `D:\python_3.12\Scripts\yt-dlp.exe` exist; add both to the PATH used to launch Friday because music launches `yt-dlp` by name.
 
-The Ollama portable build was **not installed** as of this audit; a D:-only installation to `D:\tools` is in progress (download started 2026-11-07). FFmpeg and Tesseract locations remain unverified on this machine. WhatsApp Desktop was not returned by the current-user app package check. Ollama's installed models, OAuth validity, microphone access, and weather-key validity remain unverified.
+Ollama was **not installed** on 2026-11-07; a D:-only portable build (**v0.40.15**, `D:\tools\ollama\ollama.exe`) was installed the same day after confirming no existing installation anywhere on the machine. Models live on D: via the user-level `OLLAMA_MODELS=D:\ollama\models` environment variable (set 2026-11-07). The portable build is not on PATH and does not spawn a desktop app; Ollama must be started explicitly (`D:\tools\ollama\ollama.exe serve`, or just run `ollama` commands, which talk to localhost:11434). Pulls of `llama3` and `llava` were started 2026-11-07; see the change log for their result. FFmpeg and Tesseract locations remain unverified on this machine. WhatsApp Desktop was not returned by the current-user app package check. OAuth validity and microphone access remain unverified.
 
-External prerequisites: [Ollama for Windows](https://ollama.com/download/windows) with `llama3` and `llava`; [FFmpeg/ffprobe binaries](https://ffmpeg.org/download.html) for MP3 conversion; [Tesseract engine](https://pypi.org/project/pytesseract/) for OCR; signed-in WhatsApp Desktop; Google OAuth/API configuration and an OpenWeather key. [yt-dlp documents its external dependencies](https://pypi.org/project/yt-dlp/); current YouTube support may also require its JavaScript runtime setup.
+External prerequisites: Ollama (on this machine, the D:-only portable build at `D:\tools\ollama`; otherwise [Ollama for Windows](https://ollama.com/download/windows)) with `llama3` and `llava`; [FFmpeg/ffprobe binaries](https://ffmpeg.org/download.html) for MP3 conversion; [Tesseract engine](https://pypi.org/project/pytesseract/) for OCR; signed-in WhatsApp Desktop; Google OAuth/API configuration. Weather needs **no API key** (it uses [Open-Meteo](https://open-meteo.com/), open-source). [yt-dlp documents its external dependencies](https://pypi.org/project/yt-dlp/); current YouTube support may also require its JavaScript runtime setup.
 
 ## Configuration and stored assets
 
@@ -86,8 +127,8 @@ External prerequisites: [Ollama for Windows](https://ollama.com/download/windows
 - File output limit: 50,000 characters; long files return beginning/end excerpts.
 - Write/move/delete confirmation flags are enabled; a confirmation-resume flow exists (ask Friday to do the operation, then answer yes/confirm or cancel; pending state lives in filesystem._pending).
 - memory.db stores tasks; friday_memory/ stores Chroma memories and vectors.
-- credentials.json, gmail_token.json, calendar_token.json contain private Google credentials/tokens.
-- config.py currently contains a weather API key. Never reproduce its value in documentation.
+- credentials.json, gmail_token.json, calendar_token.json contain private Google credentials/tokens and are gitignored.
+- Weather provider: [Open-Meteo](https://open-meteo.com/) (open-source, no API key); city: Bengaluru; Fahrenheit and miles per hour. The OpenWeather key has been removed from config.py and source; the old key survives only in the unused `OPENWEATHER_API_KEY` user-level environment variable on this machine (harmless; delete it manually if you want it gone).
 - temp_audio/current_track.mp3 is the music playback file. screenshots/ is created on demand.
 - friday.onnx, friday.tflite, and five friday_sample WAV files exist but are not used by the current wake listener.
 - __pycache__/ contains generated files, including an old training-module cache without corresponding source.
@@ -98,10 +139,10 @@ External prerequisites: [Ollama for Windows](https://ollama.com/download/windows
 2. Wake detection uses Google recognition, not Picovoice or bundled models. Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
 3. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
 4. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
-5. `requirements.txt` exists but is unpinned and clean installation is unverified. `.gitignore` was added, but this directory is not a git repository yet, so it has no effect. Broad exception handling hides diagnostic details.
+5. `requirements.txt` exists but is unpinned and clean installation is unverified. The folder is now a git repository with `.gitignore` in effect. Broad exception handling hides diagnostic details.
 6. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
-7. Ollama is not installed on this machine as of this audit (a D:-only portable installation was started 2026-11-07). Models llama3 and llava, plus Ollama runtime availability on PATH/D:, remain prerequisites for live use.
-8. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls, server-local forecast grouping) are fixed and covered by regression tests in tests/RESULTS.md.
+7. Ollama portable build v0.40.15 is installed at `D:\tools\ollama` (D:-only, not on PATH); `OLLAMA_MODELS=D:\ollama\models` is set as a user environment variable. `llama3` and `llava` pulls were started 2026-11-07 — verify with `D:\tools\ollama\ollama.exe list` before live tests; the app still expects `localhost:11434` to be serving.
+8. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls) are fixed and covered by regression tests in tests/RESULTS.md. The weather system no longer depends on a key-gated API; Open-Meteo day grouping is city-local via `timezone=auto`.
 
 ## Function and acceptance-test checklist
 
@@ -177,9 +218,9 @@ Checked items passed offline tests on 2026-11-07. External services, devices, OA
 
 - [x] web_search/news_search: format up to five title/snippet/URL results; clean markup; handle empty results and network errors.
 - [ ] Search routing: expected query is extracted and results reach Ollama; failure is represented honestly.
-- [x] get_weather: valid city, missing key, unknown city, timeout, and malformed response.
-- [x] get_forecast: groups days correctly and reports units; city timezone behavior is verified. (Forecast days are grouped using the city UTC offset from OpenWeather's city.timezone field; verified offline with an explicit +05:30/-08:00 fixture.)
-- [x] should_bring_jacket: cold, warm/dry, rain, drizzle, and thunderstorm cases use explicit unit assumptions.
+- [x] get_weather: valid city, geocoding failure, timeout, and malformed response.
+- [x] get_forecast: groups days correctly and reports units; city-local day grouping is requested via Open-Meteo `timezone=auto` (verified offline with the request parameters).
+- [x] should_bring_jacket: cold, warm/dry, and wet (rain/drizzle/thunderstorm) cases via WMO weather codes with explicit unit assumptions.
 - [x] City parsing: lowercase and multiword city names work.
 
 ### Music — music.py
@@ -251,6 +292,22 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 ## Change log
 
+### 2026-11-07 — Weather migrated to Open-Meteo (open-source, no API key)
+
+- `weather.py` rewritten for [Open-Meteo](https://open-meteo.com/): geocoding-api.open-meteo.com resolves the city (lat/lon, city name, timezone); api.open-meteo.com returns current conditions and the 5-day forecast in one pair of requests. WMO weather codes are mapped to text; temperature is Fahrenheit, wind in mph (as before); forecast days are city-local via the API's `timezone=auto` parameter (replacing the manual UTC-offset grouping).
+- `OPENWEATHER_API_KEY` is no longer read anywhere; the constant and configuration surface are gone from the source tree. The user-level `OPENWEATHER_API_KEY` environment variable was left untouched (it is the only copy of the old key and is now unused).
+- `tests/test_services.py` WeatherTests rewritten for the new provider (success + units/parameters, blank-city/timeout/geocode-miss/malformed paths, jacket logic via WMO codes, forecast grouping and units, and the `timezone=auto` request contract). Suite re-run: **124 test methods: 124 passed, 0 failed**.
+- README updated: machine layout/paths section, owner instructions section, source control, dependencies, configuration, prerequisites (weather needs no key), checklist items re-worded, known gaps and this entry kept in sync.
+- Committed and pushed to https://github.com/samarth3134/Friday (public) as the changes land; see git log for revisions.
+
+### 2026-11-07 — Git repository, GitHub remote, and Ollama install (D:-only)
+
+- Created public repository **https://github.com/samarth3134/Friday** from this directory (branch `main`); initial import c5d7e28 (34 files, no secrets — verified by pattern scan; `.gitattributes` LF normalization added; `.gitignore` now effective because the folder is a repository).
+- Moved the OpenWeather key out of `config.py` into the `OPENWEATHER_API_KEY` user-level environment variable (extracted from the stale compiled cache; value never printed or committed). The key is absent from source and history.
+- Installed MinGit 2.56.0.windows.4 and GitHub CLI 2.103.3 portable in `D:\tools`; gh authenticated as `samarth3134`. `GIT_CONFIG_GLOBAL=D:\tools\mingit-global.gitconfig` carries a `safe.directory` exception for this folder's ownership/SID mismatch; git is not on PATH, call `D:\tools\mingit\cmd\git.exe` or add it to PATH.
+- Confirmed Ollama was not installed anywhere, then installed the D:-only portable build **v0.40.15** (`D:\tools\ollama`); set user-level `OLLAMA_MODELS=D:\ollama\models`; started `ollama serve` and began `llama3`/`llava` pulls on 2026-11-07 — verify with `ollama list` before live tests.
+- This entry was committed and pushed; tests remain 124/124 green (no source behavior changes in this round).
+
 ### 2026-11-07 — Regression fixes, documentation sync, and gap implementations
 
 - Morning run recorded 23 failing methods; those were fixed in source (word-boundary intent matching with file/service priority rules, calendar IANA timezone creation/local-day bounds/pagination/negative-duration and all-day free-slot handling, task due-date/priority extraction and identifier parsing, music now_playing after playback and locked-file replacement, bounded WhatsApp startup with immediate cause reporting and preserved PyAutoGUI failsafe, lazy WhatsApp import in messaging.py, single OCR capture, visible mic failure explanation, one preference per remember request, dashboard no longer drives WhatsApp UI, honest unverified-send reporting). Re-run: 124 methods, all passing.
@@ -264,7 +321,7 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 - Configuration for the current Windows account: `ALLOWED_ROOTS` is now `D:/projects` and `C:/Users/Samarth`; `WINDOWS_USER` = `Samarth`.
 - Added unpinned `requirements.txt` (import-derived; clean install unverified) and `.gitignore` (no effect until this directory is a git repository).
 - Ollama is **not** installed; a D:-only portable installation was started 2026-11-07 (see known gaps). No FFmpeg/Tesseract locations were found. Live OAuth, WhatsApp delivery, audio hardware, rendered Gradio UI, and Chroma persistence remain unverified.
-- Next work: finish the Ollama installation and pull llama3/llava, then perform deliberate live integration checks once configuration is ready; keep this README synchronized with test results.
+- Next work: finish the Ollama installation and pull llama3/llava (started 2026-11-07; verify with `ollama list`), then perform deliberate live integration checks once configuration is ready; keep this README synchronized with test results.
 
 ### 2026-11-07 — Offline tests and installed-package audit
 

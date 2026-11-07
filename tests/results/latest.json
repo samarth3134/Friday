@@ -1,6 +1,6 @@
 {
   "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
-  "run_at": "2026-11-07T10:23:52+05:30",
+  "run_at": "2026-11-07T10:36:12+05:30",
   "mode": "offline, mocked external services and desktop actions",
   "tests_run": 124,
   "failures": 0,
@@ -454,7 +454,7 @@
       "status": "passed"
     },
     {
-      "test": "tests.test_services.WeatherTests.test_regression_forecast_groups_days_by_city_timezone",
+      "test": "tests.test_services.WeatherTests.test_regression_forecast_requests_city_local_timezone",
       "status": "passed"
     },
     {

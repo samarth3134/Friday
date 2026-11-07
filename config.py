@@ -1,14 +1,9 @@
-import os
-
 OLLAMA_MODEL = "llama3"
 OLLAMA_VISION_MODEL = "llava"
 WAKE_WORD_THRESHOLD = 0.5
 USE_SPEECH_FILTER = True
 WHATSAPP_SESSION_PATH = "./whatsapp_session"
 GMAIL_CREDENTIALS_PATH = "./credentials.json"
-# The OpenWeather key is read from the OPENWEATHER_API_KEY environment variable.
-# Never commit the key value; it must not appear in source or history.
-OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
 YT_MUSIC_QUALITY = "bestaudio"
 ALLOWED_ROOTS = ["D:/projects", "C:/Users/Samarth"]
 WINDOWS_USER = "Samarth"
