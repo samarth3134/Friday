@@ -90,8 +90,13 @@ def read_text_from_screen():
         return error
 
     try:
+        import config as _config
         import pytesseract
 
+        # Setting pytesseract.tesseract_cmd only rebinds the package namespace;
+        # the worker module reads its own module-global, so set it there.
+        tesseract_cmd = getattr(_config, "TESSERACT_CMD", "tesseract")
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         text = pytesseract.image_to_string(str(path)).strip()
         return text or "I could not read any text from the screen."
     except Exception:

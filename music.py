@@ -5,6 +5,10 @@ import threading
 import time
 from pathlib import Path
 
+import config as _config
+
+FFMPEG_LOCATION = getattr(_config, "FFMPEG_LOCATION", "") or ""
+
 from config import YT_MUSIC_QUALITY
 
 
@@ -74,11 +78,22 @@ def _search_track(query):
     }
 
 
+def _ffmpeg_command():
+    if FFMPEG_LOCATION:
+        if os.path.isdir(FFMPEG_LOCATION):
+            candidate = os.path.join(FFMPEG_LOCATION, "ffmpeg.exe")
+            if os.path.exists(candidate):
+                return candidate
+        elif os.path.exists(FFMPEG_LOCATION):
+            return FFMPEG_LOCATION
+    return shutil.which("ffmpeg") or ""
+
+
 def _ffmpeg_available():
-    if shutil.which("ffmpeg"):
+    if _ffmpeg_command():
         return True
 
-    print("Install ffmpeg: winget install ffmpeg")
+    print("FFmpeg not found. Install it on D: (e.g. D:\\tools\\ffmpeg) or set FFMPEG_LOCATION.")
     return False
 
 
@@ -108,6 +123,8 @@ def _download_track(track_url):
             }
         ],
     }
+    if FFMPEG_LOCATION:
+        options["ffmpeg_location"] = FFMPEG_LOCATION
     with yt_dlp.YoutubeDL(options) as ydl:
         ydl.extract_info(track_url, download=True)
 
@@ -249,6 +266,10 @@ def play(query):
             "-x",
             "--audio-format", "mp3",
             "--audio-quality", "0",
+        ]
+        if FFMPEG_LOCATION:
+            cmd += ["--ffmpeg-location", FFMPEG_LOCATION]
+        cmd += [
             "-o", out_path,
             "--no-playlist",
             url

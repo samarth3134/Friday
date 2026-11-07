@@ -76,8 +76,10 @@ Contributing flow: edit on a branch or `main`, run `& D:\python_3.12\python.exe 
 | Python interpreter + site-packages | `D:\python_3.12\python.exe` (3.12.10); its `Scripts` is **not** on PATH |
 | Git and GitHub CLI (portable) | `D:\tools\mingit\cmd\git.exe`; `D:\tools\gh` (gh.exe under `gh_2.103.3_windows_amd64\bin`) |
 | Global git exception | `D:\tools\mingit-global.gitconfig` (`safe.directory` for `D:/projects/Friday`) — required for every git/gh call |
-| Ollama (portable, D:-only) | `D:\tools\ollama\ollama.exe` (v0.40.15); not on PATH |
+| Ollama (portable, D:-only) | `D:\tools\ollama\ollama.exe` (v0.40.15); not on PATH. Server (hidden process) running on localhost:11434 as of 2026-11-07; models pulled to D: |
 | Ollama model store | `D:\ollama\models` (user-level `OLLAMA_MODELS`) |
+| Tesseract OCR 5.4.0 | `C:\Program Files\Tesseract-OCR\tesseract.exe` — installed on C: by the official installer which ignored the D: redirect; owner approved keeping it on C: (2026-11-07). `config.TESSERACT_CMD` uses it (D: path preferred if present). OCR verified end-to-end offline |
+| FFmpeg | `D:\tools\ffmpeg\bin\ffmpeg.exe` / `ffprobe.exe` (essentials build, started installing 2026-11-07); location exposed via `config.FFMPEG_LOCATION` and `--ffmpeg-location` for yt-dlp |
 | App data (gitignored) | `memory.db` (tasks), `friday_memory/` (Chroma), `friday_data/`, `temp_audio/`, `screenshots/` |
 | Test output (tracked) | `tests/results/latest.{txt,json}`, `tests/RESULTS.md` |
 | OpenCode temp workspace | `C:\Users\Samarth\AppData\Local\Temp\opencode` |
@@ -87,7 +89,7 @@ Contributing flow: edit on a branch or `main`, run `& D:\python_3.12\python.exe 
 
 These were explicitly set by the project owner and take precedence:
 
-- **Install everything on D:** whenever possible (Ollama, tools, models). Ask before installing anything on C: or changing system-wide settings.
+- **Install everything on D:** whenever possible (Ollama, tools, models). Ask before installing anything on C: or changing system-wide settings. (Exception granted 2026-11-07: Tesseract remains on `C:\Program Files\Tesseract-OCR` at the owner's request.)
 - **Weather uses open-source tooling** — now Open-Meteo (no key); do not reintroduce a key-gated weather API.
 - **Never commit secrets** (credentials.json, tokens, keys). The repo is public; the OpenWeather key was removed from source entirely and survives only in the unused `OPENWEATHER_API_KEY` user environment variable.
 - **Never reproduce keys or token values** in this README or any file.
@@ -115,7 +117,7 @@ Metadata and imports were checked with **D:\python_3.12\python.exe (Python 3.12.
 
 `D:\python_3.12` and `D:\python_3.12\Scripts` are absent from this session's PATH. Python and `D:\python_3.12\Scripts\yt-dlp.exe` exist; add both to the PATH used to launch Friday because music launches `yt-dlp` by name.
 
-Ollama was **not installed** on 2026-11-07; a D:-only portable build (**v0.40.15**, `D:\tools\ollama\ollama.exe`) was installed the same day after confirming no existing installation anywhere on the machine. Models live on D: via the user-level `OLLAMA_MODELS=D:\ollama\models` environment variable (set 2026-11-07). The portable build is not on PATH and does not spawn a desktop app; Ollama must be started explicitly (`D:\tools\ollama\ollama.exe serve`, or just run `ollama` commands, which talk to localhost:11434). Pulls of `llama3` and `llava` were started 2026-11-07; see the change log for their result. FFmpeg and Tesseract locations remain unverified on this machine. WhatsApp Desktop was not returned by the current-user app package check. OAuth validity and microphone access remain unverified.
+Ollama was **not installed** on 2026-11-07; a D:-only portable build (**v0.40.15**, `D:\tools\ollama\ollama.exe`) was installed the same day after confirming no existing installation anywhere on the machine. Models live on D: via the user-level `OLLAMA_MODELS=D:\ollama\models` environment variable (set 2026-11-07). The portable build is not on PATH and does not spawn a desktop app; Ollama must be started explicitly (`D:\tools\ollama\ollama.exe serve`, or just run `ollama` commands, which talk to localhost:11434). Pulls of `llama3` and `llava` were started 2026-11-07; see the change log for their result. FFmpeg (essentials build) was being installed to `D:\tools\ffmpeg` on 2026-11-07 (download/extraction in progress at time of writing; see change log). Tesseract 5.4.0 is installed at `C:\Program Files\Tesseract-OCR` (the official installer ignored the D: redirect; owner approved keeping it). WhatsApp Desktop was not returned by the current-user app package check. OAuth validity and microphone access remain unverified.
 
 External prerequisites: Ollama (on this machine, the D:-only portable build at `D:\tools\ollama`; otherwise [Ollama for Windows](https://ollama.com/download/windows)) with `llama3` and `llava`; [FFmpeg/ffprobe binaries](https://ffmpeg.org/download.html) for MP3 conversion; [Tesseract engine](https://pypi.org/project/pytesseract/) for OCR; signed-in WhatsApp Desktop; Google OAuth/API configuration. Weather needs **no API key** (it uses [Open-Meteo](https://open-meteo.com/), open-source). [yt-dlp documents its external dependencies](https://pypi.org/project/yt-dlp/); current YouTube support may also require its JavaScript runtime setup.
 
@@ -141,7 +143,7 @@ External prerequisites: Ollama (on this machine, the D:-only portable build at `
 4. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
 5. `requirements.txt` exists but is unpinned and clean installation is unverified. The folder is now a git repository with `.gitignore` in effect. Broad exception handling hides diagnostic details.
 6. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
-7. Ollama portable build v0.40.15 is installed at `D:\tools\ollama` (D:-only, not on PATH); `OLLAMA_MODELS=D:\ollama\models` is set as a user environment variable. `llama3` and `llava` pulls were started 2026-11-07 — verify with `D:\tools\ollama\ollama.exe list` before live tests; the app still expects `localhost:11434` to be serving.
+7. Ollama portable build v0.40.15 is installed at `D:\tools\ollama` (D:-only, not on PATH); `OLLAMA_MODELS=D:\ollama\models` is set as a user environment variable. A hidden `ollama serve` is running on localhost:11434 with **no models yet**; `llama3` and `llava` pulls were restarted 2026-11-07 after an earlier attempt was interrupted — verify with `D:\tools\ollama\ollama.exe list`; the app expects the server to be up before `python main.py`.
 8. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls) are fixed and covered by regression tests in tests/RESULTS.md. The weather system no longer depends on a key-gated API; Open-Meteo day grouping is city-local via `timezone=auto`.
 
 ## Function and acceptance-test checklist
@@ -291,6 +293,15 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-07 — Tesseract verified end-to-end; FFmpeg install started; tooling wired into the app
+
+- Tesseract OCR 5.4.0 installed (`C:\Program Files\Tesseract-OCR\tesseract.exe` — the official installer ignored the D: redirect; owner approved keeping it on C: on 2026-11-07). `config.TESSERACT_CMD` prefers `D:\tools\tesseract\tesseract.exe`, then the C: path, then PATH (all overridable via the `TESSERACT_CMD` env var).
+- `vision.py` now sets the module-global on `pytesseract.pytesseract` (setting `pytesseract.tesseract_cmd` only rebinds the package namespace and had no effect — the worker module reads its own `tesseract_cmd` global).
+- OCR verified end-to-end offline: tesseract v5.4.0 spawns through the app's config and reads a fixture image created with PIL ("FRIDAY 2026" read back as "rRupay 2026" at the tiny default font size — the engine is fine; use normal-sized UI text for decent OCR).
+- FFmpeg essentials build (~115 MB) download/install to `D:\tools\ffmpeg\bin` in progress 2026-11-07; upon completion `config.FFMPEG_LOCATION` (verified by its own existence check) exposes the directory to `music.py`, which passes it as yt-dlp's `ffmpeg_location` option and as `--ffmpeg-location` on the CLI path; `_ffmpeg_available()` checks the same path first, then PATH.
+- Suite re-run after `config.py`/`music.py`/`vision.py` edits: **124 test methods: 124 passed, 0 failed**.
+- Note: a hidden `ollama serve` is running on localhost:11434 with zero models; `llama3`/`llava` pulls were restarted 2026-11-07 (the earlier attempt was interrupted by a shell restart).
 
 ### 2026-11-07 — Weather migrated to Open-Meteo (open-source, no API key)
 

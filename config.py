@@ -1,5 +1,14 @@
+import os
+
 OLLAMA_MODEL = "llama3"
 OLLAMA_VISION_MODEL = "llava"
+# Portable tool locations (D:). Set FFMPEG_LOCATION / TESSERACT_CMD env vars to override.
+FFMPEG_LOCATION = os.environ.get("FFMPEG_LOCATION") or (
+    r"D:\tools\ffmpeg\bin" if os.path.isdir(r"D:\tools\ffmpeg\bin") else "")
+TESSERACT_CMD = os.environ.get("TESSERACT_CMD") or (
+    r"D:\tools\tesseract\tesseract.exe" if os.path.exists(r"D:\tools\tesseract\tesseract.exe")
+    else (r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+          if os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe") else "tesseract"))
 WAKE_WORD_THRESHOLD = 0.5
 USE_SPEECH_FILTER = True
 WHATSAPP_SESSION_PATH = "./whatsapp_session"
