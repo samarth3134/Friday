@@ -36,10 +36,14 @@ def _local_datetime(value):
 
 
 def _print_auth_help(error=None):
-    print("Google Calendar setup needed:")
-    print(f"1. Put your OAuth client credentials at {GMAIL_CREDENTIALS_PATH}.")
-    print("2. Install google-api-python-client, google-auth-oauthlib, and google-auth-httplib2.")
-    print("3. Run this function again and complete the browser OAuth flow.")
+    if Path(TOKEN_PATH).exists():
+        print("Google Calendar: stored token was rejected — the app will open the browser for re-authorization.")
+        print("Approve the Google permission screen; if it fails repeatedly, delete calendar_token.json and retry.")
+    else:
+        print("Google Calendar setup needed:")
+        print(f"1. Put your OAuth client credentials at {GMAIL_CREDENTIALS_PATH}.")
+        print("2. Install google-api-python-client, google-auth-oauthlib, and google-auth-httplib2.")
+        print("3. Run this function again and complete the browser OAuth flow.")
     if error:
         print(f"Auth error: {error}")
 
@@ -59,9 +63,14 @@ def _service():
             creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
 
         if not creds or not creds.valid:
+            refreshed = False
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                    refreshed = bool(creds and creds.valid)
+                except Exception as refresh_error:
+                    print(f"Stored Calendar token could not be refreshed ({refresh_error}); re-authorization will be requested.")
+            if not refreshed:
                 if not credentials_path.exists():
                     raise FileNotFoundError(f"Missing {GMAIL_CREDENTIALS_PATH}")
                 flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)

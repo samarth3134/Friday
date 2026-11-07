@@ -136,16 +136,25 @@ External prerequisites: Ollama (on this machine, the D:-only portable build at `
 - friday.onnx, friday.tflite, and five friday_sample WAV files exist but are not used by the current wake listener.
 - __pycache__/ contains generated files, including an old training-module cache without corresponding source.
 
+### Dependency licenses and cost
+
+Owner decision (2026-11-07): everything used must be open-source or free — nothing may cost money. The stack was audited against this:
+
+- **Open-source:** Python 3.12, Ollama (llama3, llava), ChromaDB, Gradio, pygame, pyttsx3, pyautogui/PyGetWindow/pycaw/pytesseract/send2trash, yt-dlp/ytmusicapi, Open-Meteo (weather, no key), SQLite, all internal modules.
+- **Free tier, proprietary (accepted by owner 2026-11-07 — no payment ever required):** Google Speech Recognition (voice + wake listener), Gmail and Google Calendar APIs (OAuth, read/send/modify + calendar), DuckDuckGo web search, WhatsApp Desktop automation.
+- Rejected alternatives: self-hosted CalDAV/IMAP+SMTP (open replacement for Gmail/Calendar), openWakeWord + faster-whisper (open replacement for Google STT), SearXNG (open-source search). The owner chose to keep the free Google/DuckDuckGo paths to avoid rewriting working features.
+
 ## Known gaps and next work
 
-1. WhatsApp reading/unread counts remain honest placeholders (no passive unread API exists for desktop automation) and sending is unverified — recipients, Unicode handling and delivery cannot be confirmed. The desktop module now preserves the PyAutoGUI failsafe and startup reports the failing cause immediately with a bounded 10-second wait.
-2. Wake detection uses Google recognition, not Picovoice or bundled models. Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
-3. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
-4. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
-5. `requirements.txt` exists but is unpinned and clean installation is unverified. The folder is now a git repository with `.gitignore` in effect. Broad exception handling hides diagnostic details.
-6. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
-7. Ollama prerequisites are met (server running; llama3 and llava both pulled and verified on localhost:11434). FFmpeg installed and verified offline at `D:\tools\ffmpeg\bin`, wired into the app (`config.FFMPEG_LOCATION`, `--ffmpeg-location`). A live generate smoke test and any live integration checks remain deliberately unrun (per the owner's rule).
-8. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls) are fixed and covered by regression tests in tests/RESULTS.md. The weather system no longer depends on a key-gated API; Open-Meteo day grouping is city-local via `timezone=auto`.
+1. Google OAuth tokens were revoked at the 2026-11-07 live boot (`invalid_grant` for Gmail and Calendar; both stored tokens had been refreshed neither since May). The Gmail/Calendar auth path now falls back to the browser consent flow automatically on refresh failure — the next Gmail/Calendar command will open the consent screen, after which tokens refresh silently again. Owner must click through once.
+2. First live run (2026-11-07): Ollama, Chroma memory, task DB, Gradio and the wake listener all came up on localhost:7862. A raw `The system cannot find the path specified.` line printed during WhatsApp startup — WhatsApp Desktop appears to be absent on this machine; it does not stop the app, but the message should be a clean "WhatsApp not installed" note (cosmetic). WhatsApp reading/unread counts remain honest placeholders (no passive unread API exists for desktop automation), and sending is unverified.
+3. Wake detection uses Google recognition, not open-source alternatives (owner declined faster-whisper/openWakeWord 2026-11-07; it costs nothing and needs internet). Command handling and speech block the wake loop, limiting interruption support. The wake matcher now uses word boundaries, so substring false positives such as "fridayish" are rejected; false-positive risk from Google misrecognition itself remains unquantified.
+4. Music queue routing (add/clear) is implemented and offline-tested; queue order, concurrent enqueue and failed-track skip behavior remain unverified.
+5. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
+6. `requirements.txt` exists but is unpinned and clean installation is unverified. Broad exception handling hides diagnostic details.
+7. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
+8. Ollama prerequisites are met (server running; llama3 and llava both pulled and verified on localhost:11434). FFmpeg installed and verified offline at `D:\tools\ffmpeg\bin`, wired into the app (`config.FFMPEG_LOCATION`, `--ffmpeg-location`). A live generate smoke test and any live integration checks remain deliberately unrun (per the owner's rule).
+9. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls) are fixed and covered by regression tests in tests/RESULTS.md. The weather system no longer depends on a key-gated API; Open-Meteo day grouping is city-local via `timezone=auto`.
 
 ## Function and acceptance-test checklist
 
@@ -294,6 +303,14 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-07 — OAuth re-authorization fallback; owner licensing audit
+
+- First live boot succeeded (Ollama, memory, tasks, Gradio, wake listener). Both Google tokens (stored in May) are revoked (`invalid_grant`); the Gmail and Calendar auth paths now fall back to the browser consent flow automatically when refresh fails, instead of failing with the misleading "put your client credentials at ./credentials.json" guidance, which also no longer prints when a stored token exists (it now says to approve the consent screen).
+- `tests/test_services.py` OAuthTests updated to the new semantics (refresh mocks mark the creds valid as real refreshes do; revoked-refresh falls back to a fresh flow; added a post-fallback flow-failure sub-scenario). Suite re-verified: **124 test methods, all passing**.
+- Owner decisions recorded: all components must be open-source or free ($0). Audit table added under "Dependency licenses and cost"; voice (Google STT), Gmail/Calendar APIs, WhatsApp automation, and DuckDuckGo search were all kept by the owner as free-tier/proprietary choices; open-source replacements were declined (self-host CalDAV/IMAP+SMTP, openWakeWord + faster-whisper, SearXNG). Nothing in the stack costs money.
+- WhatsApp Desktop appears absent on this machine (raw path error at startup; app continued; noted as known gap).
+- Committed and pushed alongside.
 
 ### 2026-11-07 — yt-dlp path resolved in-app
 

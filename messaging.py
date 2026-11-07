@@ -19,10 +19,14 @@ GMAIL_TOKEN_PATH = "gmail_token.json"
 
 
 def _print_gmail_setup(error=None):
-    print("Gmail setup needed:")
-    print(f"1. Put your OAuth client credentials at {GMAIL_CREDENTIALS_PATH}.")
-    print("2. Install google-api-python-client, google-auth-oauthlib, and google-auth-httplib2.")
-    print("3. Run a Gmail function again and complete the browser OAuth flow.")
+    if Path(GMAIL_TOKEN_PATH).exists():
+        print("Gmail: stored token was rejected — the app will open the browser for re-authorization.")
+        print("Approve the Google permission screen; if it fails repeatedly, delete gmail_token.json and retry.")
+    else:
+        print("Gmail setup needed:")
+        print(f"1. Put your OAuth client credentials at {GMAIL_CREDENTIALS_PATH}.")
+        print("2. Install google-api-python-client, google-auth-oauthlib, and google-auth-httplib2.")
+        print("3. Run a Gmail function again and complete the browser OAuth flow.")
     if error:
         print(f"Gmail error: {error}")
 
@@ -42,9 +46,14 @@ def _gmail_service():
             creds = Credentials.from_authorized_user_file(str(token_path), GMAIL_SCOPES)
 
         if not creds or not creds.valid:
+            refreshed = False
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                    refreshed = bool(creds and creds.valid)
+                except Exception as refresh_error:
+                    print(f"Stored Gmail token could not be refreshed ({refresh_error}); re-authorization will be requested.")
+            if not refreshed:
                 if not credentials_path.exists():
                     raise FileNotFoundError(f"Missing {GMAIL_CREDENTIALS_PATH}")
                 flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), GMAIL_SCOPES)

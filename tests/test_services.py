@@ -207,14 +207,18 @@ class GmailTests(unittest.TestCase):
 class OAuthTests(unittest.TestCase):
     """Both OAuth implementations exercised entirely through fake modules/Path."""
     def test_missing_first_authorization_refresh_revoked_and_build_failure(self):
+        # A missing token file or a revoked refresh token both fall back to the
+        # browser consent flow (re-authorization); both modules mirror this.
         for module_name, function_name, token_name in [
                 ("messaging", "_gmail_service", "GMAIL_TOKEN_PATH"),
                 ("calendar_integration", "_service", "TOKEN_PATH")]:
-            for scenario in ["missing", "first", "refresh", "revoked", "build_failure"]:
+            for scenario in ["missing", "first", "refresh", "revoked", "revoked_flow_failure", "build_failure"]:
                 with self.subTest(module=module_name, scenario=scenario):
                     mod = load_module(module_name, {"whatsapp_desktop": MagicMock()})
                     creds = MagicMock(valid=False, expired=True, refresh_token="fake-refresh")
                     creds.to_json.return_value = '{"fixture": true}'
+                    # A successful refresh() marks real creds valid; mirror that here.
+                    creds.refresh.side_effect = lambda *args, **kwargs: setattr(creds, "valid", True)
                     credential_api = MagicMock()
                     credential_api.Credentials.from_authorized_user_file.return_value = creds
                     flow_api = MagicMock()
@@ -226,26 +230,35 @@ class OAuthTests(unittest.TestCase):
                              "google_auth_oauthlib.flow": flow_api,
                              "googleapiclient.discovery": discovery}
                     token = MagicMock()
-                    token.exists.return_value = scenario in {"refresh", "revoked", "build_failure"}
+                    token.exists.return_value = scenario in {"refresh", "revoked", "revoked_flow_failure", "build_failure"}
                     credential_path = MagicMock()
                     credential_path.exists.return_value = scenario != "missing"
-                    if scenario == "revoked":
+                    def fake_path(arg, *args, **kwargs):
+                        normalized = str(arg).lower()
+                        if "token.json" in normalized:
+                            return token
+                        return credential_path
+                    if scenario in {"revoked", "revoked_flow_failure"}:
                         creds.refresh.side_effect = RuntimeError("revoked fixture token")
+                    if scenario == "revoked_flow_failure":
+                        flow.run_local_server.side_effect = RuntimeError("consent denied")
                     if scenario == "build_failure":
                         discovery.build.side_effect = RuntimeError("fixture unavailable")
-                    with patch.dict(sys.modules, stubs), patch.object(mod, "Path", side_effect=[token, credential_path]), patch("builtins.print"):
+                    with patch.dict(sys.modules, stubs), patch.object(mod, "Path", side_effect=fake_path), patch("builtins.print"):
                         service, error = getattr(mod, function_name)()
-                    if scenario in {"missing", "revoked", "build_failure"}:
+                    if scenario in {"missing", "revoked_flow_failure", "build_failure"}:
                         self.assertIsNone(service)
                         self.assertIn("could not connect", error)
+                        if scenario == "missing":
+                            flow.run_local_server.assert_not_called()
                     else:
                         self.assertIsNone(error)
                         self.assertIs(service, discovery.build.return_value)
                         token.write_text.assert_called_once_with('{"fixture": true}', encoding="utf-8")
-                    if scenario == "first":
-                        flow.run_local_server.assert_called_once_with(port=0)
-                    if scenario == "refresh":
-                        creds.refresh.assert_called_once()
+                        if scenario in {"first", "revoked"}:
+                            flow.run_local_server.assert_called_once_with(port=0)
+                        if scenario == "refresh":
+                            creds.refresh.assert_called_once()
 
 
 class CalendarTests(unittest.TestCase):
