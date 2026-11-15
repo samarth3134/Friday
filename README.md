@@ -12,16 +12,17 @@ Last source review: **2026-11-15**. All 19 Python modules were read (brain, cale
 
 Flow: main.py checks Ollama, initializes tasks and memory, starts WhatsApp Desktop and the wake listener, then launches Gradio. Dashboard launch failures fall back to terminal input.
 
-Text or voice -> brain.process/respond -> keyword intent classification -> Chroma memory retrieval -> feature module or Ollama -> save conversation.
+Text or voice -> brain.process/respond -> mode selection (fast default, think on demand or per-question escalation) -> keyword intent classification -> Chroma memory retrieval (mode-gated) -> feature module or Ollama -> save conversation; think mode speaks "Let me think about that." first and only the final answer.
 
 The model does not select tools. Routing uses word-boundary keyword matching plus regex extraction, in a fixed priority order. Most tools return results directly; casual replies and search-backed research use Ollama.
 
 | File | Responsibility |
 | --- | --- |
 | main.py | Startup, Ollama check, services, Gradio launch, terminal fallback |
-| brain.py | Classification, argument parsing, routing, memory context, Ollama; respond/process/handle/chat aliases |
-| config.py | Models, paths, file restrictions, weather, user name, music quality |
-| ui.py | Dashboard and Chat tabs, styling, mic button, voice-message polling |
+| brain.py | Mode selection + escalation, classification, argument parsing, routing, memory context, Ollama; respond/process/handle/chat aliases |
+| modes.py | Modes.json loader, active mode state, escalation heuristics, custom-mode creation |
+| config.py | Models, paths, file restrictions, weather, user name, music quality, YT_DLP_PATH, FFMPEG_LOCATION, tesseract |
+| ui.py | Dashboard and Chat tabs, styling, mic button, voice-message polling, mode badge |
 | dashboard.py | Collects service status and recent memories |
 | voice.py | faster-whisper offline transcription + local pyttsx3 output |
 | wakeword.py | openWakeWord offline detection of "friday" (bundled friday.onnx) |
