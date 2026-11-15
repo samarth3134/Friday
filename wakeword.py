@@ -65,7 +65,7 @@ def _play_beep():
         pass
 
 
-def _heard_friday(threshold=None, window_seconds=8):
+def _heard_friday(threshold=None):
     try:
         import numpy as np
         import sounddevice as sd
@@ -73,18 +73,24 @@ def _heard_friday(threshold=None, window_seconds=8):
         threshold = _wake_threshold() if threshold is None else float(threshold)
         samplerate = 16000
         frame = 1280  # 80 ms at 16 kHz
+        confirm = 2   # require N consecutive chunks >= threshold before triggering
 
         model = _ensure_oww()
         model.reset()
-        deadline = time.time() + window_seconds
+        deadline = time.time() + 6.0
         with sd.InputStream(samplerate=samplerate, channels=1, dtype="int16", blocksize=frame) as stream:
+            follow_ups = 0
             while time.time() < deadline:
                 data, _overflowed = stream.read(frame)
-                audio = data[:, 0]
+                audio = data[:, 0].astype(np.int16)
                 predictions = model.predict(audio)
                 score = float(predictions.get("friday", 0.0))
                 if score >= threshold:
-                    return True
+                    follow_ups += 1
+                    if follow_ups >= confirm:
+                        return True
+                else:
+                    follow_ups = 0
         return False
     except Exception:
         return False
@@ -119,7 +125,7 @@ def _handle_detection():
 def _wake_loop():
     global _running
 
-    _set_state("idle")
+    _set_state("listening")
     print("[WAKE] Listening for 'friday' via microphone...")
 
     while _running:
@@ -127,11 +133,12 @@ def _wake_loop():
             if _heard_friday():
                 print("[WAKE] Heard 'friday'!")
                 _handle_detection()
+                if _running:
+                    _set_state("listening")
                 time.sleep(0.8)
-            else:
-                _set_state("idle")
+            # No-wake cycles stay in the listening state — do not flip to idle.
         except Exception:
-            _set_state("idle")
+            _set_state("listening")
             time.sleep(0.3)
 
 

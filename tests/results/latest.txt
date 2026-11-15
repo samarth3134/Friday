@@ -134,6 +134,6 @@ test_send_sequence_ascii_and_unicode_forwarding_only (tests.test_whatsapp.WhatsA
 test_start_creates_daemon_without_running_it (tests.test_whatsapp.WhatsAppTests.test_start_creates_daemon_without_running_it) ... ok
 
 ----------------------------------------------------------------------
-Ran 134 tests in 2.061s
+Ran 134 tests in 1.402s
 
 OK

@@ -25,7 +25,7 @@ The model does not select tools. Routing uses word-boundary keyword matching plu
 | ui.py | Dashboard and Chat tabs, styling, mic button, voice-message polling, mode badge |
 | dashboard.py | Collects service status and recent memories |
 | voice.py | faster-whisper offline transcription + local pyttsx3 output |
-| wakeword.py | openWakeWord offline detection of "friday" (bundled friday.onnx) |
+| wakeword.py | openWakeWord offline detection of "friday" (bundled friday.onnx); stable LISTENING badge, 2-of-N consecutive-chunk trigger |
 | memory.py | Chroma facts, preferences, conversation pairs, similarity search, recent history |
 | tasks.py | SQLite task CRUD, filters, overdue queries |
 | filesystem.py | Restricted-path search/open/read/list/write/move/trash |
@@ -315,6 +315,13 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-15 — Wake listener state stability fix (idle ↔ listening flicker)
+
+- Replaced the "listen for N seconds then check" wake loop with a streaming listener that **stays in LISTENING** until either a command finishes (→ speaking → listening) or the process is stopped (→ listening is kept rather than bouncing to idle).
+- `_heard_friday` now requires **2 consecutive chunks** (160 ms) above `WAKE_WORD_THRESHOLD` before firing, so a single ambient-noise spike no longer trips the wake word; openWakeWord's full streaming context is reused per call.
+- `_handle_detection` resets the state to **LISTENING** after a command is spoken, so the UI badge no longer flashes idle↔listening; `wakeword._wake_loop` propagates any unhandled exception through the listening state rather than the idle state.
+- Suite re-verified: **134 test methods, all passing**.
 
 ### 2026-11-15 — Mode system (Part 3, Fast by default, Think on demand)
 

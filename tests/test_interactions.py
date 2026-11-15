@@ -127,7 +127,7 @@ class WakeTests(IsolatedCase):
         frames = [np.zeros((1280, 1), dtype="int16")] * 4
         with patch.object(self.module, "_ensure_oww", return_value=oww), \
                 patch("sounddevice.InputStream", return_value=Stream(frames)):
-            self.assertTrue(self.module._heard_friday(threshold=0.5, window_seconds=1))
+            self.assertEqual(self.module._heard_friday(threshold=0.5), True)
         oww.reset.assert_called_once_with()
 
     def test_regression_unrelated_friday_substring_is_not_wake_word(self):
@@ -139,12 +139,12 @@ class WakeTests(IsolatedCase):
         frames = [np.zeros((1280, 1), dtype="int16")] * 64
         with patch.object(self.module, "_ensure_oww", return_value=oww), \
                 patch("sounddevice.InputStream", return_value=Stream(frames)):
-            self.assertFalse(self.module._heard_friday(threshold=0.5, window_seconds=0.5))
+            self.assertFalse(self.module._heard_friday(threshold=0.5))
         self.assertGreaterEqual(oww.predict.call_count, 1)
 
     def test_heard_friday_device_failure(self):
         with patch.object(self.module, "_ensure_oww", side_effect=RuntimeError("oww unavailable")):
-            self.assertFalse(self.module._heard_friday(window_seconds=0.1))
+            self.assertFalse(self.module._heard_friday())
 
     def test_start_is_idempotent_without_real_thread(self):
         thread = MagicMock()
@@ -181,7 +181,7 @@ class WakeTests(IsolatedCase):
             raise RuntimeError("device")
         with patch.object(self.module, "_heard_friday", side_effect=fail_once), patch.object(self.module, "time", MagicMock()):
             self.module._wake_loop()
-        self.assertEqual(self.module.STATE, "idle")
+        self.assertEqual(self.module.STATE, "listening")
 
 
 class VisionTests(IsolatedCase):
