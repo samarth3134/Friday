@@ -75,7 +75,14 @@ def _recent_memory():
 def get_status():
     now = time.monotonic()
     if _cache["status"] is not None and now - _cache["stamp"] < STATUS_CACHE_TTL_SECONDS:
-        return dict(_cache["status"])
+        cached = dict(_cache["status"])
+        modes = _import("modes")
+        if modes:
+            try:
+                cached["mode"] = getattr(modes, "active_mode", lambda: cached.get("mode", "n/a"))()
+            except Exception:
+                pass
+        return cached
 
     now_clock = datetime.now()
     unread_email = _call("messaging", "gmail_get_unread", "Email is unavailable.", 5)
@@ -83,10 +90,16 @@ def get_status():
     # A timer refresh must never activate another app or send keystrokes.
     unread_whatsapp = "Unread count unavailable through desktop automation."
     wakeword = _import("wakeword")
+    modes = _import("modes")
+    try:
+        mode_name = getattr(modes, "active_mode", lambda: "n/a")() if modes else "n/a"
+    except Exception:
+        mode_name = "n/a"
 
     status = {
         "current_time": now_clock.strftime("%I:%M:%S %p").lstrip("0"),
         "date": now_clock.strftime("%A, %B %d, %Y"),
+        "mode": mode_name,
         "weather": _call("weather", "get_weather", "Weather is unavailable."),
         "todays_tasks": _call("tasks", "list_tasks", "Tasks are unavailable.", "today"),
         "todays_calendar_events": _call("calendar_integration", "get_today", "Calendar is unavailable."),

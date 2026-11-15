@@ -1,9 +1,11 @@
-import re
+﻿import re
+import sys
 from datetime import date, datetime, timedelta
 import requests
 import config
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
+CHAT_URL = "http://localhost:11434/api/chat"
 SYSTEM_PROMPT = getattr(
     config,
     "SYSTEM_PROMPT",
@@ -18,7 +20,80 @@ def _safe_import(module_name):
         return None
 
 
-def _memory_context(text):
+class _ModesFallback:
+    """Minimal default (all-fast) mode behavior when modes.py is unavailable."""
+
+    def mode_settings(self, name=None):
+        return {"model": config.OLLAMA_MODEL, "system": "You are Friday, a terse helpful assistant.",
+                "num_ctx": 8192, "num_predict": 200, "think": False, "memory": "personal",
+                "web_search": False, "keep_alive": "30m", "spoken": "short"}
+
+    def active_mode(self):
+        return "fast"
+
+    def set_to_fast(self):
+        return True, "Already in fast mode."
+
+    def set_to_think(self):
+        return True, "Already in fast mode."
+
+    def set_active_mode(self, name):
+        return False, f"I do not have a mode called {name}."
+
+    def escalation_reason(self, text):
+        return None
+
+    def is_personal_query(self, text):
+        return bool(re.search(r"\b(my|me|mine|myself|i)\b", (text or "").lower()))
+
+    def create_mode_from_text(self, text):
+        return None
+
+    def list_modes(self):
+        return ["fast"]
+
+    def describe_mode(self, name=None):
+        return {"name": "fast", "model": config.OLLAMA_MODEL, "think": False,
+                "memory": "personal", "web_search": False}
+
+
+_modes_module = None
+
+
+def _modes():
+    global _modes_module
+    if _modes_module is not None:
+        return _modes_module
+    try:
+        import modes as m
+        _modes_module = m
+        return m
+    except ModuleNotFoundError:
+        pass
+    try:
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location("modes", Path(__file__).resolve().parent / "modes.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        sys.modules.setdefault("modes", module)
+        _modes_module = module
+        return module
+    except Exception:
+        _modes_module = _ModesFallback()
+        return _modes_module
+
+
+def _memory_context(text, mode_name=None):
+    modes = _modes()
+
+    settings = modes.mode_settings(mode_name or modes.active_mode())
+    memory_mode = settings.get("memory", "all")
+    if memory_mode == "none":
+        return ""
+    if memory_mode == "personal" and not modes.is_personal_query(text):
+        return ""
+
     memory = _safe_import("memory")
     if not memory:
         return ""
@@ -56,35 +131,44 @@ def _save_memory(text, memory_type="fact"):
         return "I could not save that memory right now."
 
 
-def _system_prompt_for(intent):
-    behavior = {
-        "casual": "For casual replies, answer in at most two lines and be witty.",
-        "joke": "For jokes, answer in at most two lines and be witty.",
-        "research": "For research, be thorough, structured, and cite uncertainty clearly.",
-        "task": "For task confirmations, be brief and clear.",
-    }.get(intent, "Match your length to the complexity of the request.")
-    return (
-        f"{SYSTEM_PROMPT}\n"
-        f"Always address the user as {config.USER_NAME}.\n"
-        f"{behavior}"
-    )
+def _system_prompt_for(intent, mode_settings):
+    base = mode_settings.get("system") or "You are Friday, a helpful local AI assistant."
+    return f"{base}\nAlways address the user as {config.USER_NAME}."
 
 
-def _ollama(user_text, intent="casual", context=""):
-    prompt = (
-        f"{_system_prompt_for(intent)}\n\n"
-        f"Relevant memory:\n{context or 'No relevant memory found.'}\n\n"
-        f"User message:\n{user_text}\n\n"
-        "Friday response:"
-    )
+def _ollama(user_text, intent="casual", context="", mode_name=None):
+    modes = _modes()
+
+    settings = modes.mode_settings(mode_name or modes.active_mode())
+    memory_text = context or "No relevant memory found."
+    user_content = f"Relevant memory:\n{memory_text}\n\nUser message: {user_text}"
+    timeout = 300 if settings.get("think") else 120
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": config.OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=120,
-        )
+        payload = {
+            "model": settings.get("model", config.OLLAMA_MODEL),
+            "messages": [
+                {"role": "system", "content": _system_prompt_for(intent, settings)},
+                {"role": "user", "content": user_content},
+            ],
+            "stream": False,
+            "keep_alive": settings.get("keep_alive", "30m"),
+            "options": {
+                "num_ctx": int(settings.get("num_ctx", 8192)),
+                "num_predict": int(settings.get("num_predict", 256)),
+                "temperature": 0.7,
+            },
+        }
+        if settings.get("think"):
+            # Separate the reasoning into message.thinking; never pass think=False for Qwen3.
+            payload["think"] = True
+        else:
+            # /no_think suppresses reasoning output; the model still emits its final answer.
+            payload["messages"][0]["content"] = settings.get("system", "") + " /no_think"
+        response = requests.post(CHAT_URL, json=payload, timeout=timeout)
         response.raise_for_status()
-        answer = response.json().get("response", "").strip()
+        answer = response.json().get("message", {}).get("content", "").strip()
+        # Strip any inline reasoning leakage just in case the server returns it in the body.
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
         return answer or f"I am here, {config.USER_NAME}."
     except Exception:
         return f"I could not reach Ollama right now, {config.USER_NAME}."
@@ -156,8 +240,8 @@ def _extract_file_search_term(text):
     return term.strip() if term else text.strip()
 
 
-# ── INTENT CLASSIFIER ──────────────────────────────────────────────────────────
-# Pure keyword matching — no Ollama, no hallucination possible.
+# â”€â”€ INTENT CLASSIFIER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Pure keyword matching â€” no Ollama, no hallucination possible.
 
 def _has_phrase(text, phrases):
     """Match complete words/phrases, not fragments inside other words."""
@@ -243,19 +327,25 @@ def classify_intent(text):
     return "casual"
 
 
-# ── ROUTERS ────────────────────────────────────────────────────────────────────
+# â”€â”€ ROUTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def _route_search(user_text, intent, memory_context):
+def _route_search(user_text, intent, memory_context, mode_name=None):
+    modes = _modes()
+
+    settings = modes.mode_settings(mode_name or modes.active_mode())
     search = _safe_import("search")
     if not search:
         return "Search is not available right now."
     query = _after_keyword(user_text, ["research", "search for", "look up", "latest", "news about"])
-    if "news" in user_text.lower():
-        web_context = search.news_search(query)
+    if settings.get("web_search", True):
+        if "news" in user_text.lower():
+            web_context = search.news_search(query)
+        else:
+            web_context = search.web_search(query)
     else:
-        web_context = search.web_search(query)
+        web_context = "(Web search is disabled in this mode; answer from your own knowledge.)"
     context = f"{memory_context}\n\nWeb context:\n{web_context}".strip()
-    return _ollama(user_text, intent, context)
+    return _ollama(user_text, intent, context, mode_name=mode_name)
 
 
 def _parse_command_date(value):
@@ -322,7 +412,7 @@ def _route_files(user_text, intent):
         path = _extract_path(user_text)
         print(f"[FILE_LIST] Listing real directory: {path}")
         result = filesystem.list_dir(path)
-        # Return real result directly — no Ollama involvement
+        # Return real result directly â€” no Ollama involvement
         return result
     if intent == "file_delete":
         return filesystem.delete_file(_extract_quoted_or_tail(user_text, ["delete file", "remove file"]))
@@ -559,11 +649,102 @@ def _route_vision(user_text):
     return vision.analyze_screen()
 
 
-# ── MAIN ROUTER ────────────────────────────────────────────────────────────────
+# â”€â”€ MODE SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def route(user_text, intent, memory_context=""):
+_ESCALATE_INTENTS = {"casual", "research", "search"}
+_spoke_last_turn = False
+_last_user_message = None
+
+
+def spoke_last_turn():
+    return _spoke_last_turn
+
+
+def _speak(text):
+    voice = _safe_import("voice")
+    if not voice:
+        return False
+    try:
+        voice.speak(text)
+        return True
+    except Exception:
+        return False
+
+
+def _shorten_for_speech(text, max_words=45):
+    words = re.split(r"\s+", (text or "").strip())
+    words = [word for word in words if word]
+    if len(words) <= max_words:
+        return text
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    collected, count = [], 0
+    for sentence in sentences:
+        total = len(sentence.split())
+        if collected and count + total > max_words:
+            break
+        collected.append(sentence)
+        count += total
+    if not collected:
+        return " ".join(words[:max_words]) + "â€¦"
+    return " ".join(collected)
+
+
+def _think_harder_reply():
+    global _spoke_last_turn
+    if not _last_user_message:
+        return "I do not have a previous question to redo."
+    message = _last_user_message
+    if _speak("Let me think about that."):
+        _spoke_last_turn = True
+    intent = classify_intent(message)
+    memory_context = _memory_context(message, "think")
+    try:
+        response = route(message, intent, memory_context, mode_name="think")
+    except Exception as error:
+        response = f"Something went wrong: {error}"
+    if _speak(_shorten_for_speech(response)):
+        _spoke_last_turn = True
+    return response
+
+
+def _mode_switch_reply(user_text):
+    lowered = re.sub(r"[^\w\s]", " ", (user_text or "").lower()).strip()
+    lowered = re.sub(r"\s+", " ", lowered)
+    if lowered in {
+        "quick", "fast", "fast mode", "quick mode", "switch to fast", "switch to fast mode",
+        "back to normal", "back to fast", "normal", "normal mode",
+        "back to normal mode", "back to fast mode",
+    }:
+        return _modes().set_to_fast()[1]
+    if lowered in {
+        "think", "thinking", "think mode", "thinking mode",
+        "think about this", "think about it", "think on this",
+        "go into think mode", "go into thinking mode",
+        "switch to think", "switch to think mode", "switch to thinking mode",
+    }:
+        return _modes().set_to_think()[1]
+    if lowered in {"think harder", "think more", "think deeper", "redo in think", "redo that", "redo that in think"}:
+        return _think_harder_reply()
+    match = re.fullmatch(r"(?:switch|change|go|set)\s+(?:to\s+)?(?:mode\s+)?([a-z][\w-]{0,31})(?:\s+mode)?", lowered)
+    if match:
+        return _modes().set_active_mode(match.group(1).lower())[1]
+    return None
+
+
+def _create_mode_reply(user_text):
+    modes = _modes()
+
+    result = modes.create_mode_from_text(user_text)
+    if result is None:
+        return None
+    return result[1]
+
+
+# â”€â”€ MAIN ROUTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def route(user_text, intent, memory_context="", mode_name=None):
     if intent in {"search", "research"}:
-        return _route_search(user_text, intent, memory_context)
+        return _route_search(user_text, intent, memory_context, mode_name=mode_name)
     if intent == "task":
         return _route_task(user_text)
     if intent.startswith("file_"):
@@ -585,13 +766,14 @@ def route(user_text, intent, memory_context=""):
     if intent == "memory_recall":
         return memory_context or "I do not remember anything relevant yet."
 
-    # casual / joke / anything else → Ollama only
-    return _ollama(user_text, intent, memory_context)
+    # casual / joke / anything else â†’ Ollama only
+    return _ollama(user_text, intent, memory_context, mode_name=mode_name)
 
 
-# ── ENTRY POINTS ───────────────────────────────────────────────────────────────
+# â”€â”€ ENTRY POINTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def respond(user_text):
+    global _spoke_last_turn, _last_user_message
     if not isinstance(user_text, str) or not user_text.strip():
         return f"I did not catch that, {config.USER_NAME}."
 
@@ -601,20 +783,55 @@ def respond(user_text):
         _save_exchange(user_text, confirmation)
         return confirmation
 
+    switched = _mode_switch_reply(user_text)
+    if switched is not None:
+        _save_exchange(user_text, switched)
+        if _speak(switched):
+            _spoke_last_turn = True
+        else:
+            _spoke_last_turn = False
+        return switched
+
+    created = _create_mode_reply(user_text)
+    if created is not None:
+        _save_exchange(user_text, created)
+        if _speak(created):
+            _spoke_last_turn = True
+        else:
+            _spoke_last_turn = False
+        return created
+
     intent = classify_intent(user_text)
+
+    modes = _modes()
+    mode_name = modes.active_mode()
+    oneshot_note = ""
+    if mode_name == "fast" and intent in _ESCALATE_INTENTS and modes.escalation_reason(user_text):
+        mode_name = "think"
+        oneshot_note = " [escalated once]"
+    memory_context = _memory_context(user_text, mode_name)
+
+    if mode_name == "think":
+        if _speak("Let me think about that."):
+            _spoke_last_turn = True
+    else:
+        _spoke_last_turn = False
 
     # debug print so you can see exactly what's happening
     path_hint = f" [PATH: {_extract_path(user_text)}]" if intent == "file_list" else ""
-    print(f"[INTENT: {intent}]{path_hint}")
-
-    memory_context = _memory_context(user_text)
+    print(f"[INTENT: {intent}][MODE: {mode_name}]{oneshot_note}{path_hint}")
 
     try:
-        response = route(user_text, intent, memory_context)
+        response = route(user_text, intent, memory_context, mode_name=mode_name)
     except Exception as e:
         response = f"Something went wrong: {e}"
 
+    if mode_name == "think" and _speak(_shorten_for_speech(response)):
+        _spoke_last_turn = True
+
     _save_exchange(user_text, response)
+
+    _last_user_message = user_text
     return response
 
 
@@ -627,3 +844,8 @@ def process(user_text):
 
 def chat(user_text):
     return respond(user_text)
+
+
+
+
+

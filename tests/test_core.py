@@ -142,13 +142,14 @@ class BrainTests(unittest.TestCase):
 
     def test_ollama_success_empty_and_errors(self):
         response = Mock()
-        response.json.return_value = {'response': '  good answer  '}
+        response.json.return_value = {'message': {'content': '  good answer  '}}
         self.brain.requests.post = Mock(return_value=response)
         self.assertEqual(self.brain._ollama('hello', context='known fact'), 'good answer')
         kwargs = self.brain.requests.post.call_args.kwargs
-        self.assertEqual(kwargs['json']['model'], 'test-model')
+        self.assertEqual(kwargs['json']['model'], 'qwen3:4b')
         self.assertFalse(kwargs['json']['stream'])
-        self.assertIn('known fact', kwargs['json']['prompt'])
+        self.assertEqual(kwargs['json']['keep_alive'], '30m')
+        self.assertIn('known fact', kwargs['json']['messages'][1]['content'])
         response.json.return_value = {}
         self.assertIn('I am here', self.brain._ollama('hello'))
         response.json.side_effect = ValueError('malformed json')
@@ -168,7 +169,7 @@ class BrainTests(unittest.TestCase):
         memory.save_conversation.assert_called_once_with('hello', 'answer')
         memory.search_memory.side_effect = None
         memory.search_memory.return_value = [{'text': 'fact'}, 'other', {'text': ''}]
-        self.assertEqual(self.brain._memory_context('hello'), 'fact\nother')
+        self.assertEqual(self.brain._memory_context('my current project', mode_name='think'), 'fact\nother')
 
     def test_file_dispatch_and_missing_write_arguments(self):
         files = Mock()
@@ -189,11 +190,17 @@ class BrainTests(unittest.TestCase):
         search = Mock()
         search.web_search.return_value = 'Title URL summary'
         self.brain._safe_import.return_value = search
-        with patch.object(self.brain, '_ollama', return_value='summary') as llm:
-            self.assertEqual(self.brain._route_search('search for planets', 'search', 'memory'), 'summary')
-            search.web_search.assert_called_once_with('planets')
-            self.assertIn('Title URL summary', llm.call_args.args[2])
-            self.assertIn('memory', llm.call_args.args[2])
+        import modes
+        previous = modes._state.get('active', 'fast')
+        modes._state['active'] = 'think'
+        try:
+            with patch.object(self.brain, '_ollama', return_value='summary') as llm:
+                self.assertEqual(self.brain._route_search('search for planets', 'search', 'memory'), 'summary')
+                search.web_search.assert_called_once_with('planets')
+                self.assertIn('Title URL summary', llm.call_args.args[2])
+                self.assertIn('memory', llm.call_args.args[2])
+        finally:
+            modes._state['active'] = previous
 
     def test_regression_task_identifier_parsing(self):
         tasks = Mock()

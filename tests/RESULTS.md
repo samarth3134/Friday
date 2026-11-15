@@ -1,6 +1,6 @@
-# Offline test results — 2026-11-07T12:09:37+05:30
+# Offline test results — 2026-11-15T17:49:52+05:30
 
-**124 methods: 124 passed, 0 failed; 0 errors, 0 skipped.**
+**134 methods: 134 passed, 0 failed; 0 errors, 0 skipped.**
 
 Python: `D:\python_3.12\python.exe` (3.12.10).
 
@@ -15,6 +15,7 @@ External services, OAuth, audio, desktop actions, and Chroma are mocked. SQLite 
 | test_core.py | 33 | 0 |
 | test_interactions.py | 34 | 0 |
 | test_memory_ui.py | 15 | 0 |
+| test_modes.py | 10 | 0 |
 | test_services.py | 30 | 0 |
 | test_whatsapp.py | 12 | 0 |
 
@@ -106,6 +107,16 @@ None. All executed cases passed; unchecked README acceptance items remain unveri
 - [x] `tests.test_memory_ui.UiTests.test_regression_mic_failure_has_visible_explanation`
 - [x] `tests.test_memory_ui.UiTests.test_status_escaping_and_missing_memory`
 - [x] `tests.test_memory_ui.UiTests.test_submit_preserves_history_and_empty_input`
+- [x] `tests.test_modes.BrainModeSwitchTests.test_explicit_switches_stay_fast_by_default`
+- [x] `tests.test_modes.BrainModeSwitchTests.test_unknown_mode_stays_fast`
+- [x] `tests.test_modes.EscalationTests.test_long_questions_escalate`
+- [x] `tests.test_modes.EscalationTests.test_reasoning_cues_escalate_but_only_once`
+- [x] `tests.test_modes.EscalationTests.test_tool_intent_gets_no_memory_but_chat_does`
+- [x] `tests.test_modes.EscalationTests.test_tool_intents_never_escalate`
+- [x] `tests.test_modes.ModesJsonTests.test_load_modes_round_trips_builtin_settings`
+- [x] `tests.test_modes.ModesJsonTests.test_unknown_mode_falls_back_and_custom_create_round_trip`
+- [x] `tests.test_modes.WebSearchTests.test_fast_mode_does_not_call_web_search`
+- [x] `tests.test_modes.WebSearchTests.test_think_mode_calls_web_search`
 - [x] `tests.test_services.CalendarTests.test_create_payload_duration_invalid_input_and_api_failure`
 - [x] `tests.test_services.CalendarTests.test_day_bounds_are_local_midnights_with_exclusive_end`
 - [x] `tests.test_services.CalendarTests.test_delete_match_no_match_and_api_failure`

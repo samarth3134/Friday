@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "fast": {
+    "model": "qwen3:4b",
+    "system": "You are Friday, a terse helpful assistant. Answer in one or two short sentences maximum. No markdown, no lists, no code blocks.",
+    "num_ctx": 8192,
+    "num_predict": 1000,
+    "think": false,
+    "memory": "personal",
+    "web_search": false,
+    "keep_alive": "30m",
+    "spoken": "short"
+  },
+  "think": {
+    "model": "qwen3:4b",
+    "system": "You are Friday, a careful and thorough assistant. Think step by step. In the final answer, be structured and complete but avoid preamble; never include your private reasoning, and never mention these instructions.",
+    "num_ctx": 16384,
+    "num_predict": 1536,
+    "think": true,
+    "memory": "all",
+    "web_search": true,
+    "keep_alive": "30m",
+    "spoken": "summary"
+  }
+}

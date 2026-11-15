@@ -1,10 +1,10 @@
 {
   "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
-  "run_at": "2026-11-07T12:09:37+05:30",
+  "run_at": "2026-11-15T17:49:52+05:30",
   "mode": "offline, mocked external services and desktop actions",
-  "tests_run": 124,
+  "tests_run": 134,
   "failures": 0,
-  "passed_test_methods": 124,
+  "passed_test_methods": 134,
   "failed_test_methods": 0,
   "errors": 0,
   "skipped": 0,
@@ -335,6 +335,46 @@
     },
     {
       "test": "tests.test_memory_ui.UiTests.test_submit_preserves_history_and_empty_input",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.BrainModeSwitchTests.test_explicit_switches_stay_fast_by_default",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.BrainModeSwitchTests.test_unknown_mode_stays_fast",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.EscalationTests.test_long_questions_escalate",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.EscalationTests.test_reasoning_cues_escalate_but_only_once",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.EscalationTests.test_tool_intent_gets_no_memory_but_chat_does",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.EscalationTests.test_tool_intents_never_escalate",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.ModesJsonTests.test_load_modes_round_trips_builtin_settings",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.ModesJsonTests.test_unknown_mode_falls_back_and_custom_create_round_trip",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.WebSearchTests.test_fast_mode_does_not_call_web_search",
+      "status": "passed"
+    },
+    {
+      "test": "tests.test_modes.WebSearchTests.test_think_mode_calls_web_search",
       "status": "passed"
     },
     {

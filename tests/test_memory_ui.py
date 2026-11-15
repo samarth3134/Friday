@@ -11,7 +11,7 @@ from tests.support import ROOT, load_module
 class SourceTests(unittest.TestCase):
     def test_all_application_sources_parse(self):
         sources = sorted(ROOT.glob('*.py'))
-        self.assertEqual(len(sources), 18)
+        self.assertEqual(len(sources), 19)
         for source in sources:
             with self.subTest(file=source.name):
                 ast.parse(source.read_text(encoding='utf-8-sig'), filename=source.name)

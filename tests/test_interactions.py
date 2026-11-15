@@ -158,6 +158,7 @@ class WakeTests(IsolatedCase):
     def test_detection_state_sequence_and_handoff(self):
         self.module.voice.listen.return_value = "hello"
         self.module.brain.process.return_value = "reply"
+        self.module.brain.spoke_last_turn = False
         states = []
         actual_set_state = self.module._set_state
         def record(state):

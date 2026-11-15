@@ -111,7 +111,8 @@ def _handle_detection():
     _voice_version += 1
 
     _set_state("speaking")
-    voice.speak(response)
+    if not getattr(brain, "spoke_last_turn", False):
+        voice.speak(response)
     _set_state("idle")
 
 

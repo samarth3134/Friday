@@ -221,6 +221,7 @@ def _format_status():
         ("Unread Email", status["unread_email_count"]),
         ("Unread WhatsApp", status["unread_whatsapp_count"]),
         ("Now Playing", status["now_playing"]),
+        ("Mode", str(status.get("mode", "n/a")).upper()),
         ("Recent Memory", memory_text),
     ]
 
@@ -283,7 +284,9 @@ def build_app():
             refresh.click(fn=_format_status, outputs=status_panel)
 
         with gr.Tab("Chat"):
-            state_indicator = gr.HTML('<div style="font-size:16px;font-weight:600;padding:10px 14px;border:1px solid #334155;border-radius:10px;background:#131820;color:#64748b;">⚪ STATE: IDLE</div>')
+            with gr.Row():
+                state_indicator = gr.HTML('<div style="font-size:16px;font-weight:600;padding:10px 14px;border:1px solid #334155;border-radius:10px;background:#131820;color:#64748b;">⚪ STATE: IDLE</div>')
+                mode_badge = gr.HTML('<div style="font-size:16px;font-weight:700;letter-spacing:1.5px;padding:10px 22px;border:1px solid #f59e0b;border-radius:999px;background:#1e293b;color:#f59e0b;text-transform:uppercase;">⚡ FAST</div>')
             chatbot = gr.Chatbot(height=440, label="Friday Chat")
             module_label = gr.Markdown("Handled by: none")
             with gr.Row():
@@ -308,6 +311,16 @@ def build_app():
                 dot = dots.get(s, "⚪")
                 c = color.get(s, "#888")
                 state_html = f'<div style="font-size:16px;font-weight:600;padding:10px 14px;border:1px solid {c};border-radius:10px;background:#131820;color:{c};">{dot} STATE: {s}</div>'
+                try:
+                    import modes as _modes
+                    active = (_modes.active_mode() or "fast").lower()
+                    think = active == "think"
+                    if think:
+                        mode_html = '<div style="font-size:15px;font-weight:700;letter-spacing:1.5px;padding:10px 22px;border:1px solid #3b82f6;border-radius:999px;background:#172554;color:#93c5fd;text-transform:uppercase;">💭 THINKING · THINK</div>'
+                    else:
+                        mode_html = f'<div style="font-size:15px;font-weight:700;letter-spacing:1.5px;padding:10px 22px;border:1px solid #f59e0b;border-radius:999px;background:#1e293b;color:#f59e0b;text-transform:uppercase;">⚡ {_escape(active)}</div>'
+                except Exception:
+                    mode_html = '<div style="font-size:15px;padding:10px 22px;border:1px solid #334155;border-radius:999px;background:#131820;color:#64748b;">⚡ FAST</div>'
 
                 ver = getattr(wakeword, "_voice_version", 0)
                 if ver > _last_voice_version:
@@ -321,10 +334,10 @@ def build_app():
                         history.append({"role": "user", "content": cmd})
                         history.append({"role": "assistant", "content": response_with_label})
 
-                return history, state_html
+                return history, state_html, mode_html
 
             chat_timer = gr.Timer(0.5)
-            chat_timer.tick(fn=_chat_tick, inputs=[chatbot], outputs=[chatbot, state_indicator])
+            chat_timer.tick(fn=_chat_tick, inputs=[chatbot], outputs=[chatbot, state_indicator, mode_badge])
 
             submit.click(
                 fn=_append_response,
