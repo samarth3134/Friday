@@ -1,6 +1,6 @@
 import os
 
-OLLAMA_MODEL = "llama3"
+OLLAMA_MODEL = "qwen3:4b"
 OLLAMA_VISION_MODEL = "llava"
 # Portable tool locations (D:). Set FFMPEG_LOCATION / TESSERACT_CMD env vars to override.
 FFMPEG_LOCATION = os.environ.get("FFMPEG_LOCATION") or (

@@ -29,8 +29,8 @@ def check_ollama():
         print("Setup instructions:")
         print("1. Install Ollama from https://ollama.com/download")
         print("2. Start Ollama.")
-        print("3. Pull the required models:")
-        print("   ollama pull llama3")
+        print("3. Pull the required models (mode default runs qwen3:4b today):")
+        print("   ollama pull qwen3:4b")
         print("   ollama pull llava")
         print("4. Run Friday again with: python main.py")
         return False

@@ -51,8 +51,16 @@ python -m pip install pycaw comtypes
 Install and start [Ollama](https://ollama.com/download), then:
 
 ```powershell
-ollama pull llama3
-ollama pull llava
+ollama pull qwen3:4b   # mode-system default (fast and think); required
+ollama pull llama3     # retained for the vision/Ollama text fallback
+ollama pull llava      # vision
+```
+
+To confirm GPU offload (this machine projects RTX 5060 8 GB VRAM; Ollama reports `100% GPU` via `ollama ps`):
+
+```powershell
+& 'C:\Users\Samarth\AppData\Local\Programs\Ollama\ollama.exe' run qwen3:4b "hi"
+& 'C:\Users\Samarth\AppData\Local\Programs\Ollama\ollama.exe' ps   # PROCESSOR column should be 100% GPU
 ```
 
 ### Source control (git / GitHub)
@@ -126,7 +134,9 @@ External prerequisites: Ollama (on this machine, the D:-only portable build at `
 
 ## Configuration and stored assets
 
-- Ollama endpoint: localhost:11434; models: llama3 and llava.
+- Ollama endpoint: localhost:11434; mode-system default model: **qwen3:4b** (~2.5 GB); fallback models: llama3 and llava. Ollama runs on the RTX 5060 GPU at ~100% offload (`ollama ps` verified 2026-11-15; Ollama Official app at `C:\Users\Samarth\AppData\Local\Programs\Ollama\ollama.exe`).
+- Models live in `D:\ollama\models` via the user-level `OLLAMA_MODELS` environment variable.
+- **Modes** are defined in `modes.json` at the repo root — `fast` (default, terse answers, no thinking, tool-first, personal-only memory, no web) and `think` (thinking separated into `message.thinking`, larger num_predict/num_ctx, memory=all, web_search=true). Edit `modes.json` or create custom modes conversationally: `make a mode called tutor that <instructions>`; switch with `switch to <mode>`; one-shot think with `why is ...` escalations or `think about this`; force fast with `quick`; redo in think with `think harder`. Scoped badges appear in the Chat tab and Dashboard (⚡ FAST / 💭 THINKING).
 - User name: Boss. Weather city: Bengaluru. Weather currently uses Fahrenheit and miles per hour.
 - Allowed file roots: D:/projects and C:/Users/Samarth (updated for the current Windows account on 2026-11-07). Natural-language user-folder defaults now resolve to the Samarth profile via WINDOWS_USER.
 - File output limit: 50,000 characters; long files return beginning/end excerpts.
@@ -154,7 +164,7 @@ Owner decision (2026-11-07): everything used must be open-source or free — not
 5. File mutations are now confirmation-gated with a pending-operation flow (yes/confirm executes once, cancel aborts); send2trash failure paths and moves onto existing destinations remain unverified paths — mutation errors do not falsely report success in the covered cases.
 6. `requirements.txt` exists but is unpinned and clean installation is unverified. Broad exception handling hides diagnostic details.
 7. Dashboard status is cached for 60 seconds (dashboard.STATUS_CACHE_TTL_SECONDS), so the dashboard can lag live state by up to a minute; external services are no longer hit every second.
-8. Ollama prerequisites are met (server running; llama3 and llava both pulled and verified on localhost:11434). FFmpeg installed and verified offline at `D:\tools\ffmpeg\bin`, wired into the app (`config.FFMPEG_LOCATION`, `--ffmpeg-location`). A live generate smoke test and any live integration checks remain deliberately unrun (per the owner's rule).
+8. Ollama prerequisites are met (mode default `qwen3:4b` pulled and loading 100% on GPU, verified with `ollama ps` on 2026-11-15; RTX 5060 8 GB; llama3/llava retained for the vision path). FFmpeg installed and verified offline at `D:\tools\ffmpeg\bin`, wired into the app (`config.FFMPEG_LOCATION`, `--ffmpeg-location`). A live generate smoke test and any live integration checks remain deliberately unrun (per the owner's rule).
 9. Previously reproduced defects (intent collisions, calendar timezone/pagination/duration handling, task due-date/priority parsing, duplicate preferences, microphone failure reporting, OCR double captures, WhatsApp timeout/failsafe/report-hygiene, missing pending-confirmation workflow, dashboard per-second external calls) are fixed and covered by regression tests in tests/RESULTS.md. The weather system no longer depends on a key-gated API; Open-Meteo day grouping is city-local via `timezone=auto`.
 
 ## Function and acceptance-test checklist
@@ -304,6 +314,19 @@ Live OAuth, message delivery, audio hardware, rendered Gradio UI, Chroma embeddi
 
 
 ## Change log
+
+### 2026-11-15 — Mode system (Part 3, Fast by default, Think on demand)
+
+- Added `modes.json` (user-editable; `fast` default and `think`) and `modes.py` (loader, state, escalation heuristics, custom-mode creation).
+- `brain.py` now calls **`/api/chat`** with system+user messages instead of raw `/api/generate`; qwen3:4b only separates reasoning into `message.thinking` reliably via chat with proper role turns. Passing `think: false` dumps the entire chain-of-thought into `content` on this build; we instead rely on the chat template and never suppress thinking at the server level.
+- Default fast mode answers in ≤1–2 short sentences with no memory (unless the question is personal) and no web; tool commands bypass the LLM; `num_predict` raised to 1000 because qwen3 thinking eats into short budgets and caused empty responses.
+- Mode switching (explicit and one-shot): `think about this`, `switch to <mode>`, `back to normal`, `quick`, `think harder` (re-runs the last question in think, then restores fast). Escalation fires on reasoning cues (why/how/should I/compare/explain/debug/pros and cons/plan/what if/...) without an LLM call.
+- Think mode speaks `Let me think about that.` first, then the short final answer — never the reasoning text.
+- `ui.py`: Chat tab shows a mode badge (⚡ FAST amber / 💭 THINKING blue) updated by the chat timer; Dashboard HUD shows a Mode card; `wakeword.py` trusts `brain.spoke_last_turn` to skip re-speaking.
+- `modes.json` settings (per-mode): model, system prompt, `num_ctx`, `num_predict`, `think`, `memory` (none/personal/all), `web_search`, `keep_alive`, `spoken`.
+- qwen3:4b pulled and verified (100% GPU, `ollama ps`); `RTX 5060 8 GB` holds the 3.2 GB resident footprint plus 8192-token contexts.
+- Fast mode end-to-end: warm answers in ~3–5 s; think mode in ~30–45 s (by design).
+- `tests/test_modes.py` added; suite re-run: **134 test methods, all passing**.
 
 ### 2026-11-07 — Voice and wake listener rebuilt fully offline (open-source)
 

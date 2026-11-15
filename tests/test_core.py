@@ -50,7 +50,7 @@ class StartupTests(unittest.TestCase):
         response.raise_for_status.side_effect = RuntimeError('HTTP 404')
         self.app.requests.get = Mock(return_value=response)
         self.assertFalse(self.app.check_ollama())
-        self.assertIn('ollama pull llama3', self.output.getvalue())
+        self.assertIn('ollama pull qwen3:4b', self.output.getvalue())
 
     def test_dashboard_port_dispatch(self):
         ui = Mock()
